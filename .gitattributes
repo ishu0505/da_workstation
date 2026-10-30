@@ -1,0 +1,8 @@
+# >>> agent-kit (managed by install.sh; edit SHARE in .agents/agent-kit.conf)
+*.sh text eol=lf
+.githooks/* text eol=lf
+.agents/** text eol=lf
+.claude/settings.json text eol=lf
+.codex/hooks.json text eol=lf
+.claude/skills/** text eol=lf
+# <<< agent-kit

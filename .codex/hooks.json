@@ -1,0 +1,14 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'sh \"$(git rev-parse --show-toplevel)/.agents/kit/stop-hook.sh\"'"
+          }
+        ]
+      }
+    ]
+  }
+}

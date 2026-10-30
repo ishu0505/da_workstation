@@ -1,0 +1,5 @@
+#!/bin/sh
+# Blocks a commit while it breaks the agent maps or the agent setup. Problems
+# this commit did not cause are printed as one line and do not block.
+# Active once per clone: git config core.hooksPath .githooks
+exec sh "$(git rev-parse --show-toplevel)/.agents/kit/check.sh" --staged --quiet

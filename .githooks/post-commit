@@ -1,0 +1,6 @@
+#!/bin/sh
+# Notes a commit that changed code but not the docs covering it, so the agent
+# can explain and document it later (the catch-up skill). Never blocks.
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$ROOT/.agents/kit/queue.sh" ] && sh "$ROOT/.agents/kit/queue.sh" add HEAD >/dev/null 2>&1
+exit 0
