@@ -95,6 +95,15 @@ Details: `README.agentk.md`. Shared rules: the maps above this folder.
 
 Only list paths that exist; the checks fail on a missing one.
 
+Then run `sh .agents/kit/candidates.sh <folder>`. It lists folders and files
+that look like test data, generated code, or an old copy of another folder.
+Show the list and ask which are true; put only the confirmed ones in the
+map's optional "Do not read unless asked" and "Lookalikes" sections. Ask once
+for "Hidden links": a change here that breaks a file elsewhere in a way
+search does not show (a config key, a name written as text, a file another
+language reads). Write each row only on a yes; leave out a section with no
+rows.
+
 ## 3. Register
 
 - Add a row for the unit to the parent folder's `AGENTS.md` map (or the

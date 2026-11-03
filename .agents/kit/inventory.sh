@@ -7,6 +7,7 @@
 # Works before the kit is installed (run it from agent_dev_kit/templates/kit/)
 # and after (.agents/kit/inventory.sh). Needs sh, git, find, awk, cksum.
 
+KIT_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"  # before cd: $0 may be relative
 ROOT=$(git -C "${1:-.}" rev-parse --show-toplevel 2>/dev/null) || {
   echo "inventory: not inside a git repository"; exit 1; }
 cd "$ROOT" || exit 1
@@ -15,7 +16,7 @@ SKIP_DIRS="node_modules .venv venv vendor target build dist out bin obj"
 LEARNING_DIR="learning_docs"
 DOC_SUFFIX=""
 OWN_SKILLS=""
-[ -f .agents/agent-kit.conf ] && . ./.agents/agent-kit.conf
+. "$KIT_LIB" && load_conf
 KIT_SKILLS="lineage scaffold docs-sync learning-docs catch-up wrap-up explain-diff"
 TODAY=$(date +%s)
 SEEN=$(mktemp) || exit 1

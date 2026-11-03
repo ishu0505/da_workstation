@@ -1,8 +1,9 @@
 #!/bin/sh
 # Connect your local kit maps (AGENTS.agentk.md) to each coding agent, in a
-# team repo, without touching the team's files. Beside mode only
-# (MAPS="beside" in .agents/agent-kit.conf). Everything it writes stays on
-# this computer: .git/info/exclude hides it, and check.sh blocks a commit.
+# team repo, without touching the team's files (MAPS="beside" in
+# .agents/agent-kit.conf), plus the workspace pointer described below.
+# Everything it writes stays on this computer: .git/info/exclude hides it,
+# and check.sh blocks a commit.
 #
 # Usage: sh .agents/kit/wire.sh           write or refresh the wiring
 #        sh .agents/kit/wire.sh --plan    show what it finds and would do; change nothing
@@ -22,24 +23,33 @@
 #   Gemini       reported only; the agent adds your map to context.fileName
 #                in ~/.gemini/settings.json with your yes.
 # A file git tracks (the team's) is never written; it is reported instead.
+#
+# In a multi-repo workspace (a parent folder with .agent-workspace/), Codex
+# also gets a pointer to the workspace map: in beside mode inside the root
+# AGENTS.override.md, in own mode (the kit owns AGENTS.md, nothing else to
+# wire) in a root AGENTS.override.md made from AGENTS.md plus that pointer.
 
 MODE=write
 case "${1:-}" in
   --plan) MODE=plan ;; --check) MODE=check ;; --remove) MODE=remove ;; --quiet) MODE=quiet ;;
   "") ;; *) echo "usage: wire.sh [--plan|--check|--remove|--quiet]"; exit 2 ;;
 esac
+KIT_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"  # before cd: $0 may be relative
 cd "$(git rev-parse --show-toplevel)" || exit 1
 MAPS="own"
 DOC_SUFFIX=""
 AGENTS_USED="claude codex"
 SKIP_DIRS="node_modules .venv venv vendor target build dist out bin obj"
 LEARNING_DIR="learning_docs"
-[ -f .agents/agent-kit.conf ] && . ./.agents/agent-kit.conf
-if [ "$MAPS" != beside ]; then
-  [ "$MODE" = plan ] && echo "MAPS is \"$MAPS\": the kit owns AGENTS.md here, so there is nothing to wire"
-  exit 0
-fi
+. "$KIT_LIB" && load_conf
 MAP_FILE="AGENTS${DOC_SUFFIX:-.agentk.md}"
+WS_MAP=""  # the workspace map, when this repo sits in a multi-repo workspace
+for up in .. ../..; do
+  if [ -f "$up/.agent-workspace/workspace.conf" ] && [ -f "$up/WORKSPACE.agentk.md" ]; then
+    WS_MAP="$up/WORKSPACE.agentk.md"; break
+  fi
+done
+WS_NOTE="This repo is part of a multi-repo workspace. Before a change that touches another repo or a contract between repos, read \`$WS_MAP\`."
 BEGIN="<!-- agent-kit:begin (local only: written by .agents/kit/wire.sh, never committed) -->"
 END="<!-- agent-kit:end -->"
 MARK="agent-kit: written by .agents/kit/wire.sh"
@@ -127,6 +137,7 @@ codex_file() {  # codex_file <folder> <out>: the override Codex reads instead of
     fi
     echo
     cat "$mine"
+    if [ "$1" = . ] && [ -n "$WS_MAP" ]; then echo; echo "$WS_NOTE"; fi
   } > "$2"
 }
 
@@ -159,6 +170,42 @@ wire_folder() {  # wire_folder <folder>
     fi
   fi
 }
+
+if [ "$MAPS" != beside ]; then
+  # Own mode: the kit owns AGENTS.md, so nothing needs wiring, except in a
+  # workspace: Codex reads AGENTS.md only from the git root down, so a local
+  # AGENTS.override.md adds the pointer to the workspace map. Claude Code
+  # finds the workspace CLAUDE.md in the parent folder by itself.
+  path=AGENTS.override.md
+  kit_override=no
+  [ -f "$path" ] && ! tracked "$path" && grep -q "$MARK" "$path" && kit_override=yes
+  if [ "$MODE" = remove ]; then
+    [ "$kit_override" = yes ] && rm -f "$path" && echo "removed $path"
+    exit 0
+  fi
+  if [ -n "$WS_MAP" ] && uses codex && [ -f AGENTS.md ]; then
+    {
+      echo "<!-- $MARK from AGENTS.md and the workspace map; local only, never"
+      echo "     committed. Do not edit it: edit AGENTS.md, then run sh .agents/kit/wire.sh -->"
+      echo
+      cat AGENTS.md
+      [ -n "$(tail -c 1 AGENTS.md)" ] && echo
+      echo
+      echo "$WS_NOTE"
+    } > "$TMP/codex"
+    if [ -f "$path" ] && [ "$kit_override" = no ]; then
+      say codex skip "$path" "not the kit's (tracked or hand-written): Codex cannot see the workspace map"
+    else
+      apply codex "$path" "$TMP/codex" "AGENTS.md, then a pointer to $WS_MAP"
+    fi
+  elif [ "$kit_override" = yes ]; then
+    drop codex "$path" "no workspace here any more"
+  elif [ "$MODE" = plan ]; then
+    echo "MAPS is \"$MAPS\": the kit owns AGENTS.md here, so there is nothing to wire"
+  fi
+  [ "$MODE" = check ] && [ "$STALE" = 1 ] && exit 1
+  exit 0
+fi
 
 if [ "$MODE" = remove ]; then
   made_here | while IFS= read -r file; do

@@ -13,11 +13,12 @@
 #   PROBABLY YOURS on the remote, but only you wrote it
 #   TEAM FILE      on the remote, and other people wrote it
 #   KIT            made by agent-kit (wire.sh) on this computer
+KIT_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"  # before cd: $0 may be relative
 ROOT=$(git -C "${1:-.}" rev-parse --show-toplevel 2>/dev/null) || {
   echo "agent-files: not inside a git repository"; exit 1; }
 cd "$ROOT" || exit 1
 SKIP_DIRS="node_modules .venv venv vendor target build dist out bin obj"
-[ -f .agents/agent-kit.conf ] && . ./.agents/agent-kit.conf
+. "$KIT_LIB" && load_conf
 ME=$(git config user.email)
 
 # --- The repo ------------------------------------------------------------------

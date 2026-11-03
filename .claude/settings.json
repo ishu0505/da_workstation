@@ -5,7 +5,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'sh \"$(git rev-parse --show-toplevel)/.agents/kit/session-start.sh\"'"
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null) && [ -f \"$r/.agents/kit/session-start.sh\" ] && exec sh \"$r/.agents/kit/session-start.sh\"; exit 0'"
           }
         ]
       }
@@ -15,7 +15,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'sh \"$(git rev-parse --show-toplevel)/.agents/kit/stop-hook.sh\"'"
+            "command": "sh -c 'r=$(git rev-parse --show-toplevel 2>/dev/null) && [ -f \"$r/.agents/kit/stop-hook.sh\" ] && exec sh \"$r/.agents/kit/stop-hook.sh\"; exit 0'"
           }
         ]
       }

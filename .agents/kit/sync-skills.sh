@@ -4,10 +4,11 @@
 # SKILLS_LINK="copy": a real copy, for clones where symlinks do not work
 # (Windows without Developer Mode). Run again after editing a skill.
 set -eu
+KIT_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"  # before cd: $0 may be relative
 cd "$(git rev-parse --show-toplevel)"
 SKILLS_LINK="symlink"
 MAPS="own"
-[ -f .agents/agent-kit.conf ] && . ./.agents/agent-kit.conf
+. "$KIT_LIB" && load_conf
 per_skill() {  # beside mode: each kit skill in its own marked folder, beside any team skill
   mkdir -p .claude/skills
   for skill in .agents/skills/*/; do

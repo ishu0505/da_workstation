@@ -1,7 +1,9 @@
 # Writing style for every doc the kit writes
 
 Learning docs, kit detail docs, decisions, change explanations (`explain-diff`,
-`catch-up`) and code comments follow these rules. Maps (`AGENTS.md`) stay
+`explain-d-ez`, `explain-d-in`, `catch-up`) and code comments follow these
+rules; learning docs and `explain-d-*` take their sentence rules and quizzes
+from `explain-standard.agentk.md`. Maps (`AGENTS.md`) stay
 short tables and lists; the rules about sentences apply to their prose.
 Installed by agent_dev_kit; do not edit here.
 
@@ -29,6 +31,10 @@ Installed by agent_dev_kit; do not edit here.
   edit them by hand, and never commit any kit file. The team's rules come
   first: when your map disagrees with them, follow the team and tell the
   user.
+- **In a multi-repo workspace** (a parent folder with `.agent-workspace/`),
+  `WORKSPACE.agentk.md` and the files in `.agent-workspace/` are kit docs
+  too. Never write kit files inside a repo whose kit status there is
+  "declined" or "none": its light map lives in `.agent-workspace/maps/`.
 - With `DOC_SUFFIX` empty (a repo set up before kit 0.6), the kit's files
   have plain names (`README.md` in a unit, `DECISIONS.md`). Edit only the
   ones the kit wrote, and ask when you are not sure.
@@ -81,7 +87,11 @@ The reader is smart but new: they know how to program, not this system.
 
 ## ASD-STE100 Simplified Technical English
 
-Follow its writing rules as closely as you can:
+Learning docs and the `explain-d-ez` / `explain-d-in` explanations follow
+`explain-standard.agentk.md` (about 80% of the way to ASD-STE100) instead of
+this section. Everything else the kit writes (maps, kit detail docs,
+decisions, `catch-up`, `explain-diff`, code comments) follows its writing
+rules as closely as you can:
 
 - One topic per paragraph. One instruction per sentence.
 - Procedural sentences (instructions): at most 20 words. Descriptive

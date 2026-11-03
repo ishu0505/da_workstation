@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- agent-kit: architecture review commit=FILL date=YYYY-MM-DD -->
+<!-- arch-emulator page skeleton (agent_dev_kit). Copy it, then replace every
+     FILL comment and placeholder. Keep the CSS and the script as they are:
+     they give every page the same layout, theme and widgets. -->
+<title>FILL: repo architecture review</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --text: #1f2328; --muted: #59636e;
+  --line: #d8dee4; --accent: #0b6bcb; --accent-soft: #e7f0fb;
+  --good: #1a7f37; --good-soft: #e6f4ea; --bad: #c62828; --bad-soft: #fdecea;
+  --warn-soft: #fff4e0; --code-bg: #f3f4f6;
+  --easy: #1a7f37; --medium: #9a6700; --hard: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --surface: #181c21; --text: #e6e8eb; --muted: #9aa4af;
+    --line: #2d333b; --accent: #5ca9ff; --accent-soft: #15273b;
+    --good: #4ac26b; --good-soft: #13281a; --bad: #ff6b6b; --bad-soft: #2d1515;
+    --warn-soft: #2b2212; --code-bg: #1e2329;
+    --easy: #4ac26b; --medium: #d6a531; --hard: #ff6b6b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --surface: #181c21; --text: #e6e8eb; --muted: #9aa4af;
+  --line: #2d333b; --accent: #5ca9ff; --accent-soft: #15273b;
+  --good: #4ac26b; --good-soft: #13281a; --bad: #ff6b6b; --bad-soft: #2d1515;
+  --warn-soft: #2b2212; --code-bg: #1e2329;
+  --easy: #4ac26b; --medium: #d6a531; --hard: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 1.8rem; line-height: 1.25; margin: 0 0 8px; }
+h2 { font-size: 1.35rem; margin: 48px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+.meta { color: var(--muted); font-size: .92rem; }
+a { color: var(--accent); }
+nav.toc { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; margin: 24px 0; }
+nav.toc ol { margin: 6px 0 0; padding-left: 20px; }
+code { font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre { white-space: pre; overflow-x: auto; background: var(--code-bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+pre code { background: none; padding: 0; }
+pre .add { background: var(--good-soft); display: block; }
+pre .del { background: var(--bad-soft); display: block; }
+.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+.callout.warn { border-color: var(--medium); background: var(--warn-soft); }
+.callout strong:first-child { display: block; margin-bottom: 2px; }
+.skip { color: var(--muted); font-size: .92rem; font-style: italic; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+.diagram { overflow-x: auto; }
+.diagram svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.diagram svg text { fill: var(--text); font: 13px system-ui, sans-serif; }
+.diagram svg .box { fill: var(--surface); stroke: var(--line); }
+.diagram svg .hot { fill: var(--accent-soft); stroke: var(--accent); }
+.diagram svg .arrow { stroke: var(--muted); fill: none; marker-end: url(#arrowhead); }
+.caption { color: var(--muted); font-size: .9rem; text-align: center; margin-top: 6px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+button { font: inherit; font-size: .92rem; cursor: pointer; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); border-radius: 8px; padding: 6px 12px; }
+button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+button:disabled { opacity: .45; cursor: default; }
+.step { display: none; }
+.step.on { display: block; }
+.progress { color: var(--muted); font-size: .9rem; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+.q .level { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.q .level.easy { color: var(--easy); } .q .level.medium { color: var(--medium); } .q .level.hard { color: var(--hard); }
+.q .ask { margin: 4px 0 10px; font-weight: 600; }
+.q button.opt { display: block; width: 100%; text-align: left; margin: 6px 0; padding: 8px 12px; }
+.q button.opt.right { border-color: var(--good); background: var(--good-soft); color: var(--text); }
+.q button.opt.wrong { border-color: var(--bad); background: var(--bad-soft); color: var(--text); }
+.q .why { display: none; margin-top: 10px; font-size: .95rem; }
+.q.done .why { display: block; }
+#score { position: sticky; bottom: 12px; text-align: center; margin-top: 24px; }
+#score span { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: .92rem; }
+/* shared */
+@media (max-width: 520px) { body { font-size: 16px; } h1 { font-size: 1.5rem; } }
+nav.top { display: flex; gap: 12px; flex-wrap: wrap; font-size: .92rem; margin-bottom: 18px; }
+.diagram svg [data-node] { cursor: pointer; }
+.diagram svg [data-node] rect { fill: var(--surface); stroke: var(--line); transition: fill .2s, stroke .2s; }
+.diagram svg [data-node].on rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.diagram svg [data-node]:focus { outline: none; }
+.diagram svg [data-node]:focus rect { stroke: var(--accent); stroke-dasharray: 4 3; }
+.diagram svg .flow { stroke: var(--accent); fill: none; stroke-dasharray: 6 5; animation: flow 1s linear infinite; marker-end: url(#arrowhead); }
+.diagram svg .col { fill: var(--muted); font-size: 12px; }
+.diagram svg .key { fill: var(--accent); font-size: 12px; font-weight: 600; }
+@keyframes flow { to { stroke-dashoffset: -22; } }
+@media (prefers-reduced-motion: reduce) { .diagram svg .flow { animation: none; } }
+.panel { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 10px; min-height: 3em; }
+.panel .hint { color: var(--muted); font-size: .92rem; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; margin: 12px 0; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--surface); }
+.table-wrap { overflow-x: auto; }
+.emu .row { display: grid; grid-template-columns: minmax(110px, 30%) 1fr minmax(90px, auto); gap: 8px; align-items: center; margin: 6px 0; font-size: .93rem; }
+.emu .bar { height: 14px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.emu .bar span { display: block; height: 100%; background: var(--good); transition: width .2s; }
+.emu .bar span.mid { background: var(--medium); }
+.emu .bar span.full { background: var(--bad); }
+.emu .src { color: var(--muted); font-size: .82rem; grid-column: 1 / -1; margin-top: -4px; }
+.emu input[type=range] { width: 100%; }
+.emu .sum { background: var(--accent-soft); border-radius: 8px; padding: 8px 12px; margin-top: 10px; font-size: .95rem; }
+.tier { display: inline-block; font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; padding: 1px 8px; border-radius: 999px; border: 1px solid var(--line); }
+.tier.quick { color: var(--easy); } .tier.medium { color: var(--medium); } .tier.long { color: var(--hard); }
+.good { color: var(--good); } .bad { color: var(--bad); }
+@media (max-width: 520px) { .emu .row { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>FILL: repo name: architecture and scale review</h1>
+  <p class="meta">FILL: repo · commit <code>FILL</code> · YYYY-MM-DD · text version: <a href="FILL: YYYY-MM-DD-review.agentk.md">YYYY-MM-DD-review.agentk.md</a></p>
+  <p>FILL: three short sentences. What the system is. What limits it first. The most important fix.</p>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#system">The system</a></li>
+    <li><a href="#emulator">Load emulator</a></li>
+    <li><a href="#paths">Request paths and latency</a></li>
+    <li><a href="#tech">The tools it uses: pros, cons, limits</a></li>
+    <li><a href="#findings">What is good, what is missing</a></li>
+    <li><a href="#fixes">Fixes: quick, medium, long term</a></li>
+    <li><a href="#tests">Tests to run</a></li>
+  </ol>
+</nav>
+
+<section id="system">
+  <h2>The system</h2>
+  <p>Click a part: what it does, how it scales, what limits it. Solid arrows are calls that wait for an answer (HTTP, gRPC); moving dashes are messages that do not wait (a queue, an event).</p>
+  <div class="card" data-explore>
+    <figure class="diagram">
+      <svg viewBox="0 0 560 150" role="img" aria-label="FILL: the parts of the system and how they talk">
+        <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g data-node="api"><rect x="10" y="50" width="130" height="50" rx="8"/><text x="75" y="80" text-anchor="middle">FILL: API</text></g>
+        <path class="arrow" d="M140,75 L205,75"/>
+        <g data-node="db"><rect x="210" y="50" width="130" height="50" rx="8"/><text x="275" y="80" text-anchor="middle">FILL: database</text></g>
+        <path class="flow" d="M75,50 C75,10 420,10 420,45"/>
+        <g data-node="worker"><rect x="410" y="50" width="140" height="50" rx="8"/><text x="480" y="80" text-anchor="middle">FILL: worker</text></g>
+      </svg>
+    </figure>
+    <div class="panel" aria-live="polite"><span class="hint">Click a part of the diagram.</span></div>
+    <template data-info="api"><strong>FILL: API</strong><p>FILL: what it does. Scales by: FILL (stateless copies / one instance only). Limited by: FILL, from <code>FILL: file:line</code>.</p></template>
+    <template data-info="db"><strong>FILL: database</strong><p>FILL</p></template>
+    <template data-info="worker"><strong>FILL: worker</strong><p>FILL</p></template>
+  </div>
+</section>
+
+<section id="emulator">
+  <h2>Load emulator</h2>
+  <p>Move the slider. Each bar shows how full one part is. <strong>This is an estimate from the numbers below, not a load test.</strong> Each number says where it comes from: a file in the repo, a provider limit, or an assumption.</p>
+  <div class="card emu" data-emulator></div>
+  <div class="callout warn"><strong>How the estimate works</strong>Load on a part = requests per second × calls per request. Wait time grows as the part fills up (time ÷ (1 − use)). Requests in flight = requests per second × end-to-end time (Little's Law). Real systems also slow down from locks, cold starts and noisy neighbors: a load test finds those.</div>
+</section>
+
+<section id="paths">
+  <h2>Request paths and latency</h2>
+  <!-- One step-through per important path: each step names the hop, whether
+       it waits, its time budget, its timeout and retries, with file:line. -->
+  <div class="card" data-stepper>
+    <figure class="diagram">
+      <svg viewBox="0 0 560 130" role="img" aria-label="FILL: one request path">
+        <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g data-node="api"><rect x="10" y="40" width="140" height="50" rx="8"/><text x="80" y="70" text-anchor="middle">FILL: API</text></g>
+        <path class="arrow" d="M150,65 L205,65"/>
+        <g data-node="db"><rect x="210" y="40" width="140" height="50" rx="8"/><text x="280" y="70" text-anchor="middle">FILL: database</text></g>
+        <path class="flow" d="M350,65 L405,65"/>
+        <g data-node="worker"><rect x="410" y="40" width="140" height="50" rx="8"/><text x="480" y="70" text-anchor="middle">FILL: worker</text></g>
+      </svg>
+    </figure>
+    <div class="step" data-title="FILL: hop 1" data-hot="api">FILL: what happens; waits or not; time budget; timeout and retries (<code>FILL: file:line</code>).</div>
+    <div class="step" data-title="FILL: hop 2" data-hot="api db">FILL</div>
+  </div>
+</section>
+
+<section id="tech">
+  <h2>The tools it uses: pros, cons, limits</h2>
+  <div class="table-wrap"><table>
+    <tr><th>Tool</th><th>Good for here</th><th>Weak here</th><th>Limit that matters (source)</th><th>Instead, when</th></tr>
+    <tr><td>FILL: SQS</td><td>FILL</td><td>FILL</td><td>FILL (provider docs, checked YYYY-MM-DD)</td><td>FILL</td></tr>
+  </table></div>
+</section>
+
+<section id="findings">
+  <h2>What is good, what is missing</h2>
+  <div class="card" data-toggle>
+    <div data-state="Good">
+      <ul><li class="good">FILL: a strength, with <code>file:line</code>, and why it helps at scale.</li></ul>
+    </div>
+    <div data-state="Gaps">
+      <!-- One row per gap, worst first. Confidence: confirmed (the code shows
+           it), likely, or unverified. -->
+      <div class="table-wrap"><table>
+        <tr><th>Gap</th><th>Evidence</th><th>What breaks, and at what load</th><th>Confidence</th></tr>
+        <tr><td>FILL</td><td><code>FILL: file:line</code></td><td>FILL</td><td>FILL</td></tr>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section id="fixes">
+  <h2>Fixes: quick, medium, long term</h2>
+  <div class="card" data-toggle>
+    <div data-state="Quick (days)">
+      <div class="table-wrap"><table>
+        <tr><th>Fix</th><th>Closes gap</th><th>Effort</th><th>Gain</th><th>Risk</th></tr>
+        <tr><td><span class="tier quick">quick</span> FILL</td><td>FILL</td><td>FILL</td><td>FILL</td><td>FILL</td></tr>
+      </table></div>
+    </div>
+    <div data-state="Medium (weeks)">
+      <div class="table-wrap"><table>
+        <tr><th>Fix</th><th>Closes gap</th><th>Effort</th><th>Gain</th><th>Risk</th></tr>
+        <tr><td><span class="tier medium">medium</span> FILL</td><td>FILL</td><td>FILL</td><td>FILL</td><td>FILL</td></tr>
+      </table></div>
+    </div>
+    <div data-state="Long term (months)">
+      <div class="table-wrap"><table>
+        <tr><th>Fix</th><th>Closes gap</th><th>Effort</th><th>Gain</th><th>Risk</th></tr>
+        <tr><td><span class="tier long">long</span> FILL</td><td>FILL</td><td>FILL</td><td>FILL</td><td>FILL</td></tr>
+      </table></div>
+    </div>
+  </div>
+</section>
+
+<section id="tests">
+  <h2>Tests to run</h2>
+  <!-- Each test: what it proves, how to run it (a tool, on a staging copy,
+       never production), the metric to watch, and the pass line. -->
+  <div class="table-wrap"><table>
+    <tr><th>Test</th><th>Proves</th><th>How</th><th>Watch</th><th>Pass when</th></tr>
+    <tr><td>FILL: spike test</td><td>FILL</td><td>FILL</td><td>FILL: p95 latency, errors, queue age</td><td>FILL</td></tr>
+  </table></div>
+</section>
+</main>
+
+<!-- FILL: the emulator model. unit is "users" or "rps". rps_per_user turns
+     users into requests per second. min, max and start are on the slider
+     (users or rps); marks are buttons (today, 10x, 100x). For each part:
+     capacity_rps (requests per second it handles before it is full),
+     base_ms (its time when idle), calls_per_request (how many times one
+     request uses it; 0.2 for one request in five), on_path (false when
+     the request does not wait for it, e.g. a queue consumer), and source:
+     where each number comes from. Write < as \u003c inside strings. -->
+<script type="application/json" id="emulator-data">
+{
+  "unit": "users", "rps_per_user": 0.05, "min": 10, "max": 1000000, "start": 1000,
+  "marks": [{"label": "Today (FILL)", "users": 1000}, {"label": "10x", "users": 10000}, {"label": "100x", "users": 100000}],
+  "components": [
+    {"name": "FILL: API (2 copies)", "capacity_rps": 800, "base_ms": 25, "calls_per_request": 1, "on_path": true, "source": "FILL: assumed: 2 copies x 400 rps; replicas in deploy/api.yaml:12"}
+  ]
+}
+</script>
+
+<script>
+(function () {
+  // Before / after toggles.
+  document.querySelectorAll("[data-toggle]").forEach(function (box) {
+    var states = Array.prototype.slice.call(box.querySelectorAll(":scope > [data-state]"));
+    if (!states.length) return;
+    var bar = document.createElement("div"); bar.className = "controls";
+    var buttons = states.map(function (state, i) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = state.getAttribute("data-state");
+      b.addEventListener("click", function () { show(i); }); bar.appendChild(b); return b;
+    });
+    box.insertBefore(bar, box.firstChild);
+    function show(i) {
+      states.forEach(function (s, j) { s.hidden = j !== i; buttons[j].setAttribute("aria-pressed", String(j === i)); });
+    }
+    show(0);
+  });
+
+  // Clickable diagrams: a [data-node] in the SVG shows <template data-info>
+  // with the same id in the card's .panel.
+  document.querySelectorAll("[data-explore]").forEach(function (box) {
+    var panel = box.querySelector(".panel"); if (!panel) return;
+    var nodes = Array.prototype.slice.call(box.querySelectorAll("[data-node]"));
+    function pick(node) {
+      nodes.forEach(function (n) { n.classList.toggle("on", n === node); });
+      var info = box.querySelector('template[data-info="' + node.getAttribute("data-node") + '"]');
+      panel.textContent = "";
+      if (info) panel.appendChild(info.content.cloneNode(true));
+    }
+    nodes.forEach(function (node) {
+      node.setAttribute("tabindex", "0"); node.setAttribute("role", "button");
+      node.addEventListener("click", function () { pick(node); });
+      node.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(node); } });
+    });
+  });
+
+  // Step-through. A step's data-hot lights those [data-node] parts of the
+  // card's diagram. Play walks through the steps by itself.
+  document.querySelectorAll("[data-stepper]").forEach(function (box) {
+    var steps = Array.prototype.slice.call(box.querySelectorAll(":scope > .step"));
+    if (!steps.length) return;
+    var nodes = Array.prototype.slice.call(box.querySelectorAll("[data-node]"));
+    var bar = document.createElement("div"); bar.className = "controls";
+    function button(text) { var b = document.createElement("button"); b.type = "button"; b.textContent = text; bar.appendChild(b); return b; }
+    var prev = button("← Back"), next = button("Next →"), play = button("▶ Play");
+    var label = document.createElement("span"); label.className = "progress"; label.setAttribute("aria-live", "polite");
+    bar.appendChild(label);
+    box.insertBefore(bar, box.firstChild);
+    var at = 0, timer = null;
+    function show() {
+      steps.forEach(function (s, j) { s.classList.toggle("on", j === at); });
+      var hot = " " + (steps[at].getAttribute("data-hot") || "") + " ";
+      nodes.forEach(function (n) { n.classList.toggle("on", hot.indexOf(" " + n.getAttribute("data-node") + " ") >= 0); });
+      prev.disabled = at === 0; next.disabled = at === steps.length - 1;
+      label.textContent = "Step " + (at + 1) + " of " + steps.length + ": " + (steps[at].getAttribute("data-title") || "");
+    }
+    function stop() { if (timer) { clearInterval(timer); timer = null; play.textContent = "▶ Play"; } }
+    prev.addEventListener("click", function () { stop(); if (at > 0) { at--; show(); } });
+    next.addEventListener("click", function () { stop(); if (at < steps.length - 1) { at++; show(); } });
+    play.addEventListener("click", function () {
+      if (timer) { stop(); return; }
+      if (at === steps.length - 1) at = 0;
+      play.textContent = "❚❚ Pause"; show();
+      timer = setInterval(function () { if (at < steps.length - 1) { at++; show(); } else { stop(); } }, 1800);
+    });
+    show();
+  });
+
+  // Load emulator: an estimate from the numbers in #emulator-data, never a
+  // load test. Load on a part = requests per second x calls_per_request.
+  // Use = load / capacity_rps. Wait grows as base_ms / (1 - use) (a simple
+  // queue model); at 100% use the part is over capacity. In flight =
+  // requests per second x end-to-end time (Little's Law).
+  (function () {
+    var box = document.querySelector("[data-emulator]"), model;
+    if (!box) return;
+    try { model = JSON.parse(document.getElementById("emulator-data").textContent); } catch (e) { return; }
+    var parts = model.components || [], perUser = Number(model.rps_per_user) || 1;
+    var min = Math.log10(model.min || 1), max = Math.log10(model.max || 1e6);
+    function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
+    function fmt(n) { return n >= 100 ? Math.round(n).toLocaleString() : String(Math.round(n * 10) / 10); }
+    var label = el("div", "progress"), slider = el("input");
+    slider.type = "range"; slider.min = "0"; slider.max = "1000"; slider.setAttribute("aria-label", "Load");
+    var marks = el("div", "controls"), rows = el("div"), sum = el("div", "sum");
+    sum.setAttribute("aria-live", "polite");
+    box.appendChild(label); box.appendChild(slider); box.appendChild(marks); box.appendChild(rows); box.appendChild(sum);
+    (model.marks || []).forEach(function (m) {
+      var b = el("button", "", m.label); b.type = "button";
+      b.addEventListener("click", function () { set(m[model.unit === "rps" ? "rps" : "users"]); });
+      marks.appendChild(b);
+    });
+    var view = parts.map(function (p) {
+      var row = el("div", "row"), bar = el("div", "bar"), fill = el("span"), out = el("span");
+      bar.appendChild(fill); row.appendChild(el("span", "", p.name)); row.appendChild(bar); row.appendChild(out);
+      if (p.source) row.appendChild(el("span", "src", p.source));
+      rows.appendChild(row); return { fill: fill, out: out, p: p };
+    });
+    function set(amount) { slider.value = String(Math.round((Math.log10(Math.max(amount, 1)) - min) / (max - min) * 1000)); draw(); }
+    function draw() {
+      var amount = Math.pow(10, min + (max - min) * Number(slider.value) / 1000);
+      var rps = model.unit === "rps" ? amount : amount * perUser, total = 0, over = [];
+      label.textContent = model.unit === "rps" ? fmt(rps) + " requests per second"
+        : fmt(amount) + " active users = " + fmt(rps) + " requests per second";
+      view.forEach(function (v) {
+        var calls = v.p.calls_per_request == null ? 1 : v.p.calls_per_request;
+        var use = rps * calls / v.p.capacity_rps;
+        v.fill.style.width = Math.min(use, 1) * 100 + "%";
+        v.fill.className = use >= 0.9 ? "full" : use >= 0.7 ? "mid" : "";
+        if (use >= 1) { v.out.textContent = "over capacity"; v.out.className = "bad"; over.push(v.p.name); }
+        else { var ms = v.p.base_ms / (1 - use); v.out.textContent = Math.round(use * 100) + "% · " + fmt(ms) + " ms"; v.out.className = "";
+          if (v.p.on_path !== false) total += ms * Math.max(calls, 1); }
+      });
+      var first = parts.slice().sort(function (a, b) {
+        return a.capacity_rps / (a.calls_per_request || 1) - b.capacity_rps / (b.calls_per_request || 1); })[0];
+      var limit = first ? first.capacity_rps / (first.calls_per_request || 1) : 0;
+      sum.textContent = (over.length ? "Over capacity: " + over.join(", ") + ". Requests queue up, time out or fail. "
+        : "End-to-end time about " + fmt(total) + " ms; about " + fmt(rps * total / 1000) + " requests in flight. ")
+        + (first ? "First to fill up: " + first.name + ", at about " + fmt(model.unit === "rps" ? limit : limit / perUser)
+        + (model.unit === "rps" ? " requests per second." : " active users.") : "");
+    }
+    slider.addEventListener("input", draw);
+    set(model.start || Math.pow(10, (min + max) / 2));
+  })();
+
+})();
+</script>
+</body>
+</html>

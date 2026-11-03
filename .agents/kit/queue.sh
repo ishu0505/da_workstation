@@ -12,37 +12,28 @@
 # of that file's covering docs: the nearest AGENTS.md, kit detail doc
 # (README.agentk.md) or the people's README.md above it.
 # A commit message with "[no-docs]" is never queued.
+KIT_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"  # before cd: $0 may be relative
 cd "$(git rev-parse --show-toplevel)" || exit 1
 CODE_EXTENSIONS="py js ts tsx jsx go rs c cc cpp h hpp java kt cs rb php swift sql sh"
 SKIP_DIRS="node_modules .venv venv vendor target build dist out bin obj"
 LEARNING_DIR="learning_docs"
 DOC_SUFFIX=""
-[ -f .agents/agent-kit.conf ] && . ./.agents/agent-kit.conf
+. "$KIT_LIB" && load_conf
 UNIT_DOC="README${DOC_SUFFIX:-.md}"
 if [ "${MAPS:-own}" = beside ]; then MAP_FILE="AGENTS${DOC_SUFFIX:-.agentk.md}"; else MAP_FILE="AGENTS.md"; fi
 DIR="$(git rev-parse --git-common-dir)/agent-kit"
 PENDING="$DIR/pending"
 
-is_code() {  # is_code <path>: a code file outside skipped folders
-  for part in $(printf '%s' "$1" | tr '/' ' '); do
-    case "$part" in .*|_*) return 1 ;; esac
-    [ "$part" = "$LEARNING_DIR" ] && return 1
-    for skip in $SKIP_DIRS; do [ "$part" = "$skip" ] && return 1; done
-  done
-  ext=${1##*.}
-  [ "$ext" != "$1" ] || return 1
-  case " $CODE_EXTENSIONS " in *" $ext "*) return 0 ;; esac
-  return 1
-}
-covering_docs() {  # covering_docs <path>: the docs in the nearest folder above it that has any
+covering_docs() {  # covering_docs <path>: the docs in the nearest folder above it that has any, one per line
   dir=$(dirname "$1")
   while :; do
     found=""
     for doc in AGENTS.md "$MAP_FILE" "$UNIT_DOC" README.md; do
-      if [ "$dir" = . ]; then [ -f "$doc" ] && found="$found $doc"
-      else [ -f "$dir/$doc" ] && found="$found $dir/$doc"; fi
+      path=$doc; [ "$dir" = . ] || path="$dir/$doc"
+      [ -f "$path" ] && found="$found$path
+"
     done
-    if [ -n "$found" ] || [ "$dir" = . ]; then echo "$found"; return; fi
+    if [ -n "$found" ] || [ "$dir" = . ]; then printf '%s' "$found"; return; fi
     dir=$(dirname "$dir")
   done
 }
@@ -54,13 +45,19 @@ case "${1:-list}" in
     [ -f "$PENDING" ] && grep -q "^$sha " "$PENDING" && exit 0
     files=$(git -c core.quotepath=off diff-tree --root --no-commit-id --name-only -r "$sha")
     undocumented=0
-    for file in $files; do
-      is_code "$file" || continue
+    while IFS= read -r file; do
+      [ -n "$file" ] && is_code "$file" || continue
       docs=$(covering_docs "$file")
       touched=no
-      for doc in $docs; do printf '%s\n' "$files" | grep -qxF "$doc" && touched=yes; done
+      while IFS= read -r doc; do
+        [ -n "$doc" ] && printf '%s\n' "$files" | grep -qxF -- "$doc" && touched=yes
+      done <<DOCS
+$docs
+DOCS
       [ "$touched" = no ] && undocumented=$((undocumented + 1))
-    done
+    done <<FILES
+$files
+FILES
     [ "$undocumented" -gt 0 ] || exit 0
     mkdir -p "$DIR"
     printf '%s %s %s-files %s\n' "$sha" "$(git log -1 --format=%cs "$sha")" "$undocumented" \

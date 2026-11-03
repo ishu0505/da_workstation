@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- explain-d-in page skeleton (agent_dev_kit). Copy it, then replace every
+     FILL comment and placeholder. Keep the CSS and the script as they are:
+     they give every page the same layout, theme, widgets and quiz. -->
+<title>FILL: short title of the change</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --text: #1f2328; --muted: #59636e;
+  --line: #d8dee4; --accent: #0b6bcb; --accent-soft: #e7f0fb;
+  --good: #1a7f37; --good-soft: #e6f4ea; --bad: #c62828; --bad-soft: #fdecea;
+  --warn-soft: #fff4e0; --code-bg: #f3f4f6;
+  --easy: #1a7f37; --medium: #9a6700; --hard: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --surface: #181c21; --text: #e6e8eb; --muted: #9aa4af;
+    --line: #2d333b; --accent: #5ca9ff; --accent-soft: #15273b;
+    --good: #4ac26b; --good-soft: #13281a; --bad: #ff6b6b; --bad-soft: #2d1515;
+    --warn-soft: #2b2212; --code-bg: #1e2329;
+    --easy: #4ac26b; --medium: #d6a531; --hard: #ff6b6b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --surface: #181c21; --text: #e6e8eb; --muted: #9aa4af;
+  --line: #2d333b; --accent: #5ca9ff; --accent-soft: #15273b;
+  --good: #4ac26b; --good-soft: #13281a; --bad: #ff6b6b; --bad-soft: #2d1515;
+  --warn-soft: #2b2212; --code-bg: #1e2329;
+  --easy: #4ac26b; --medium: #d6a531; --hard: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 1.8rem; line-height: 1.25; margin: 0 0 8px; }
+h2 { font-size: 1.35rem; margin: 48px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+.meta { color: var(--muted); font-size: .92rem; }
+a { color: var(--accent); }
+nav.toc { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; margin: 24px 0; }
+nav.toc ol { margin: 6px 0 0; padding-left: 20px; }
+code { font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre { white-space: pre; overflow-x: auto; background: var(--code-bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+pre code { background: none; padding: 0; }
+pre .add { background: var(--good-soft); display: block; }
+pre .del { background: var(--bad-soft); display: block; }
+.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+.callout.warn { border-color: var(--medium); background: var(--warn-soft); }
+.callout strong:first-child { display: block; margin-bottom: 2px; }
+.skip { color: var(--muted); font-size: .92rem; font-style: italic; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+.diagram { overflow-x: auto; }
+.diagram svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.diagram svg text { fill: var(--text); font: 13px system-ui, sans-serif; }
+.diagram svg .box { fill: var(--surface); stroke: var(--line); }
+.diagram svg .hot { fill: var(--accent-soft); stroke: var(--accent); }
+.diagram svg .arrow { stroke: var(--muted); fill: none; marker-end: url(#arrowhead); }
+.caption { color: var(--muted); font-size: .9rem; text-align: center; margin-top: 6px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+button { font: inherit; font-size: .92rem; cursor: pointer; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); border-radius: 8px; padding: 6px 12px; }
+button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+button:disabled { opacity: .45; cursor: default; }
+.step { display: none; }
+.step.on { display: block; }
+.progress { color: var(--muted); font-size: .9rem; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+.q .level { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.q .level.easy { color: var(--easy); } .q .level.medium { color: var(--medium); } .q .level.hard { color: var(--hard); }
+.q .ask { margin: 4px 0 10px; font-weight: 600; }
+.q button.opt { display: block; width: 100%; text-align: left; margin: 6px 0; padding: 8px 12px; }
+.q button.opt.right { border-color: var(--good); background: var(--good-soft); color: var(--text); }
+.q button.opt.wrong { border-color: var(--bad); background: var(--bad-soft); color: var(--text); }
+.q .why { display: none; margin-top: 10px; font-size: .95rem; }
+.q.done .why { display: block; }
+#score { position: sticky; bottom: 12px; text-align: center; margin-top: 24px; }
+#score span { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: .92rem; }
+@media (max-width: 520px) { body { font-size: 16px; } h1 { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1>FILL: the change in plain words</h1>
+  <p class="meta">FILL: repo · <code>base..head</code> or PR #n · YYYY-MM-DD</p>
+  <p>FILL: three short sentences. The problem. The change. The result.</p>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#background">Background</a></li>
+    <li><a href="#intuition">Intuition</a></li>
+    <li><a href="#code">Code walkthrough</a></li>
+    <li><a href="#affects">What else this affects</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<section id="background">
+  <h2>Background</h2>
+  <p class="skip">If you know FILL: the general ideas, skip to <a href="#background-here">the part about this repo</a>.</p>
+  <!-- FILL: the general ideas a newcomer needs. Explain each term in one
+       sentence the first time. A callout for a key definition: -->
+  <div class="callout"><strong>FILL: term</strong>FILL: one-sentence meaning.</div>
+  <h3 id="background-here">In this repo</h3>
+  <!-- FILL: the parts of this system the change touches, with real files. -->
+</section>
+
+<section id="intuition">
+  <h2>Intuition</h2>
+  <!-- FILL: the core idea with toy data (say it is invented). Pick the
+       widgets that show the behavior; delete the ones you do not use. -->
+
+  <!-- Widget: before / after. Two states of the same toy example. -->
+  <div class="card" data-toggle>
+    <div data-state="Before">FILL: what happened before the change (a small diagram, table or UI mock)</div>
+    <div data-state="After">FILL: what happens now</div>
+  </div>
+
+  <!-- Widget: step-through. One step per .step, in order; data-title names it. -->
+  <div class="card" data-stepper>
+    <div class="step" data-title="FILL: step 1">FILL: the state at step 1 (diagram with example data)</div>
+    <div class="step" data-title="FILL: step 2">FILL: the state at step 2</div>
+  </div>
+
+  <!-- Static diagram: inline SVG with the classes box, hot (highlighted),
+       arrow. Text uses the theme colors by itself. -->
+  <figure class="diagram">
+    <svg viewBox="0 0 520 120" role="img" aria-label="FILL: what the diagram shows">
+      <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <rect class="box" x="10" y="35" width="140" height="50" rx="8"/><text x="80" y="65" text-anchor="middle">FILL: A</text>
+      <path class="arrow" d="M150,60 L190,60"/>
+      <rect class="hot" x="190" y="35" width="140" height="50" rx="8"/><text x="260" y="65" text-anchor="middle">FILL: changed part</text>
+      <path class="arrow" d="M330,60 L370,60"/>
+      <rect class="box" x="370" y="35" width="140" height="50" rx="8"/><text x="440" y="65" text-anchor="middle">FILL: C</text>
+    </svg>
+    <figcaption class="caption">FILL: caption with the example data</figcaption>
+  </figure>
+</section>
+
+<section id="code">
+  <h2>Code walkthrough</h2>
+  <!-- FILL: the changes in a logical order, numbered. For each: file and
+       line, what it does now, and why. Escape <, > and & in code. Mark
+       added and removed lines with <span class="add"> / <span class="del">. -->
+  <h3>1. FILL: step name <code>path/file.ext:42</code></h3>
+  <pre><code>FILL: the relevant lines</code></pre>
+  <p>FILL: what it does now, and why.</p>
+</section>
+
+<section id="affects">
+  <h2>What else this affects</h2>
+  <!-- FILL: callers, other units, data, users. Or "nothing outside the
+       changed code", with the reason. A warning callout for an edge case: -->
+  <div class="callout warn"><strong>FILL: edge case</strong>FILL: what happens and why it matters.</div>
+</section>
+
+<section id="quiz">
+  <h2>Quiz</h2>
+  <p>Six questions, from easy to hard. Click an answer to see if it is right and why.</p>
+  <div id="quiz-list"></div>
+  <div id="score" aria-live="polite"><span>0 of 0 answered</span></div>
+</section>
+</main>
+
+<!-- FILL: the quiz. level is easy, medium or hard (in that order). answer is
+     the index of the correct option (0 = A). why explains the answer and why
+     the strongest wrong option is wrong. Write < as < inside strings. -->
+<script type="application/json" id="quiz-data">
+[
+  {"level": "easy", "q": "FILL: question", "options": ["FILL: A", "FILL: B", "FILL: C", "FILL: D"], "answer": 1, "why": "FILL: reason, with the code reference. A is wrong because ..."}
+]
+</script>
+
+<script>
+(function () {
+  // Before / after toggles.
+  document.querySelectorAll("[data-toggle]").forEach(function (box) {
+    var states = Array.prototype.slice.call(box.querySelectorAll(":scope > [data-state]"));
+    if (!states.length) return;
+    var bar = document.createElement("div"); bar.className = "controls";
+    var buttons = states.map(function (state, i) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = state.getAttribute("data-state");
+      b.addEventListener("click", function () { show(i); }); bar.appendChild(b); return b;
+    });
+    box.insertBefore(bar, box.firstChild);
+    function show(i) {
+      states.forEach(function (s, j) { s.hidden = j !== i; buttons[j].setAttribute("aria-pressed", String(j === i)); });
+    }
+    show(0);
+  });
+
+  // Step-through.
+  document.querySelectorAll("[data-stepper]").forEach(function (box) {
+    var steps = Array.prototype.slice.call(box.querySelectorAll(":scope > .step"));
+    if (!steps.length) return;
+    var bar = document.createElement("div"); bar.className = "controls";
+    var prev = document.createElement("button"); prev.type = "button"; prev.textContent = "← Back";
+    var next = document.createElement("button"); next.type = "button"; next.textContent = "Next →";
+    var label = document.createElement("span"); label.className = "progress"; label.setAttribute("aria-live", "polite");
+    bar.appendChild(prev); bar.appendChild(next); bar.appendChild(label);
+    box.insertBefore(bar, box.firstChild);
+    var at = 0;
+    function show() {
+      steps.forEach(function (s, j) { s.classList.toggle("on", j === at); });
+      prev.disabled = at === 0; next.disabled = at === steps.length - 1;
+      label.textContent = "Step " + (at + 1) + " of " + steps.length + ": " + (steps[at].getAttribute("data-title") || "");
+    }
+    prev.addEventListener("click", function () { if (at > 0) { at--; show(); } });
+    next.addEventListener("click", function () { if (at < steps.length - 1) { at++; show(); } });
+    show();
+  });
+
+  // Quiz.
+  var data = [];
+  try { data = JSON.parse(document.getElementById("quiz-data").textContent); } catch (e) { data = []; }
+  var list = document.getElementById("quiz-list"), score = document.querySelector("#score span");
+  var answered = 0, right = 0, letters = "ABCD";
+  function update() { score.textContent = answered + " of " + data.length + " answered, " + right + " right"; }
+  data.forEach(function (item, n) {
+    var box = document.createElement("div"); box.className = "q";
+    var level = document.createElement("div"); level.className = "level " + item.level;
+    level.textContent = (n + 1) + " · " + item.level;
+    var ask = document.createElement("div"); ask.className = "ask"; ask.textContent = item.q;
+    var why = document.createElement("div"); why.className = "why";
+    box.appendChild(level); box.appendChild(ask);
+    var buttons = item.options.map(function (text, i) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "opt";
+      b.textContent = letters[i] + ". " + text;
+      b.addEventListener("click", function () {
+        if (box.classList.contains("done")) return;
+        box.classList.add("done"); answered++;
+        if (i === item.answer) right++;
+        b.classList.add(i === item.answer ? "right" : "wrong");
+        buttons[item.answer].classList.add("right");
+        why.textContent = (i === item.answer ? "Right. " : "Not quite: the answer is " + letters[item.answer] + ". ") + item.why;
+        update();
+      });
+      box.appendChild(b); return b;
+    });
+    box.appendChild(why); list.appendChild(box);
+  });
+  update();
+})();
+</script>
+</body>
+</html>

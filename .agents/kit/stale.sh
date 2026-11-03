@@ -15,13 +15,14 @@
 #   learning docs  source_paths and source_commit in the front matter
 #   decisions      source_paths in the front matter of accepted decisions
 # "since <ref>" compares every doc with the merge base of <ref> instead.
+KIT_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"  # before cd: $0 may be relative
 cd "$(git rev-parse --show-toplevel)" || exit 1
 SKIP_DIRS="node_modules .venv venv vendor target build dist out bin obj"
 LEARNING_DIR="learning_docs"
 DECISIONS_DIR=""
 DOC_SUFFIX=""
 POINTER_FILES="CLAUDE.md"
-[ -f .agents/agent-kit.conf ] && . ./.agents/agent-kit.conf
+. "$KIT_LIB" && load_conf
 KIT_MD=${DOC_SUFFIX:-.md}
 if [ "${MAPS:-own}" = beside ]; then MAP_FILE="AGENTS${DOC_SUFFIX:-.agentk.md}"; else MAP_FILE="AGENTS.md"; fi
 TAB=$(printf '\t')

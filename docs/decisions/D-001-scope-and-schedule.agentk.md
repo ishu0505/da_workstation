@@ -1,6 +1,6 @@
 ---
 id: D-001
-status: accepted
+status: superseded by D-006
 date: 2026-10-29
 supersedes: none
 source_paths: []

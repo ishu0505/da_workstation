@@ -1,0 +1,340 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- agent-kit: interactive from=FILL.agentk.md source_commit=FILL built=YYYY-MM-DD -->
+<!-- interactive-docs page skeleton (agent_dev_kit). Copy it, then replace every
+     FILL comment and placeholder. Keep the CSS and the script as they are:
+     they give every page the same layout, theme and widgets. -->
+<title>FILL: unit or flow name</title>
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --text: #1f2328; --muted: #59636e;
+  --line: #d8dee4; --accent: #0b6bcb; --accent-soft: #e7f0fb;
+  --good: #1a7f37; --good-soft: #e6f4ea; --bad: #c62828; --bad-soft: #fdecea;
+  --warn-soft: #fff4e0; --code-bg: #f3f4f6;
+  --easy: #1a7f37; --medium: #9a6700; --hard: #c62828;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111418; --surface: #181c21; --text: #e6e8eb; --muted: #9aa4af;
+    --line: #2d333b; --accent: #5ca9ff; --accent-soft: #15273b;
+    --good: #4ac26b; --good-soft: #13281a; --bad: #ff6b6b; --bad-soft: #2d1515;
+    --warn-soft: #2b2212; --code-bg: #1e2329;
+    --easy: #4ac26b; --medium: #d6a531; --hard: #ff6b6b;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111418; --surface: #181c21; --text: #e6e8eb; --muted: #9aa4af;
+  --line: #2d333b; --accent: #5ca9ff; --accent-soft: #15273b;
+  --good: #4ac26b; --good-soft: #13281a; --bad: #ff6b6b; --bad-soft: #2d1515;
+  --warn-soft: #2b2212; --code-bg: #1e2329;
+  --easy: #4ac26b; --medium: #d6a531; --hard: #ff6b6b;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text);
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 760px; margin: 0 auto; padding: 32px 16px 80px; }
+h1 { font-size: 1.8rem; line-height: 1.25; margin: 0 0 8px; }
+h2 { font-size: 1.35rem; margin: 48px 0 12px; padding-top: 8px; border-top: 1px solid var(--line); }
+h3 { font-size: 1.1rem; margin: 28px 0 8px; }
+.meta { color: var(--muted); font-size: .92rem; }
+a { color: var(--accent); }
+nav.toc { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 18px; margin: 24px 0; }
+nav.toc ol { margin: 6px 0 0; padding-left: 20px; }
+code { font: .9em ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: var(--code-bg); padding: 1px 4px; border-radius: 4px; }
+pre { white-space: pre; overflow-x: auto; background: var(--code-bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 12px 14px; font: 13.5px/1.5 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+pre code { background: none; padding: 0; }
+pre .add { background: var(--good-soft); display: block; }
+pre .del { background: var(--bad-soft); display: block; }
+.callout { border-left: 4px solid var(--accent); background: var(--accent-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 16px 0; }
+.callout.warn { border-color: var(--medium); background: var(--warn-soft); }
+.callout strong:first-child { display: block; margin-bottom: 2px; }
+.skip { color: var(--muted); font-size: .92rem; font-style: italic; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+.diagram { overflow-x: auto; }
+.diagram svg { max-width: 100%; height: auto; display: block; margin: 0 auto; }
+.diagram svg text { fill: var(--text); font: 13px system-ui, sans-serif; }
+.diagram svg .box { fill: var(--surface); stroke: var(--line); }
+.diagram svg .hot { fill: var(--accent-soft); stroke: var(--accent); }
+.diagram svg .arrow { stroke: var(--muted); fill: none; marker-end: url(#arrowhead); }
+.caption { color: var(--muted); font-size: .9rem; text-align: center; margin-top: 6px; }
+.controls { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; align-items: center; }
+button { font: inherit; font-size: .92rem; cursor: pointer; border: 1px solid var(--line); background: var(--surface);
+  color: var(--text); border-radius: 8px; padding: 6px 12px; }
+button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+button:disabled { opacity: .45; cursor: default; }
+.step { display: none; }
+.step.on { display: block; }
+.progress { color: var(--muted); font-size: .9rem; }
+.q { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+.q .level { font-size: .78rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+.q .level.easy { color: var(--easy); } .q .level.medium { color: var(--medium); } .q .level.hard { color: var(--hard); }
+.q .ask { margin: 4px 0 10px; font-weight: 600; }
+.q button.opt { display: block; width: 100%; text-align: left; margin: 6px 0; padding: 8px 12px; }
+.q button.opt.right { border-color: var(--good); background: var(--good-soft); color: var(--text); }
+.q button.opt.wrong { border-color: var(--bad); background: var(--bad-soft); color: var(--text); }
+.q .why { display: none; margin-top: 10px; font-size: .95rem; }
+.q.done .why { display: block; }
+#score { position: sticky; bottom: 12px; text-align: center; margin-top: 24px; }
+#score span { background: var(--surface); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; font-size: .92rem; }
+/* shared */
+@media (max-width: 520px) { body { font-size: 16px; } h1 { font-size: 1.5rem; } }
+nav.top { display: flex; gap: 12px; flex-wrap: wrap; font-size: .92rem; margin-bottom: 18px; }
+.diagram svg [data-node] { cursor: pointer; }
+.diagram svg [data-node] rect { fill: var(--surface); stroke: var(--line); transition: fill .2s, stroke .2s; }
+.diagram svg [data-node].on rect { fill: var(--accent-soft); stroke: var(--accent); stroke-width: 2; }
+.diagram svg [data-node]:focus { outline: none; }
+.diagram svg [data-node]:focus rect { stroke: var(--accent); stroke-dasharray: 4 3; }
+.diagram svg .flow { stroke: var(--accent); fill: none; stroke-dasharray: 6 5; animation: flow 1s linear infinite; marker-end: url(#arrowhead); }
+.diagram svg .col { fill: var(--muted); font-size: 12px; }
+.diagram svg .key { fill: var(--accent); font-size: 12px; font-weight: 600; }
+@keyframes flow { to { stroke-dashoffset: -22; } }
+@media (prefers-reduced-motion: reduce) { .diagram svg .flow { animation: none; } }
+.panel { border-top: 1px dashed var(--line); margin-top: 10px; padding-top: 10px; min-height: 3em; }
+.panel .hint { color: var(--muted); font-size: .92rem; }
+table { border-collapse: collapse; width: 100%; font-size: .95rem; margin: 12px 0; }
+th, td { border: 1px solid var(--line); padding: 6px 8px; text-align: left; vertical-align: top; }
+th { background: var(--surface); }
+.table-wrap { overflow-x: auto; }
+</style>
+</head>
+<body>
+<main>
+<nav class="top" aria-label="Pages">
+  <a href="FILL: ../index.html for a page in a subfolder">← All interactive docs</a>
+  <a href="FILL: previous page.html">← Previous</a>
+  <a href="FILL: next page.html">Next →</a>
+  <a href="FILL: ../01-api.agentk.md, the learning doc this page is built from">The text version</a>
+</nav>
+<header>
+  <h1>FILL: the unit or flow in plain words</h1>
+  <p class="meta">FILL: repo · built from <code>FILL: 01-api.agentk.md</code> · YYYY-MM-DD</p>
+  <p>FILL: the simple summary from the learning doc: what it does, its input, its output, what it does not do.</p>
+</header>
+
+<nav class="toc" aria-label="Contents">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#map">The parts</a></li>
+    <li><a href="#flow">Follow one request</a></li>
+    <li><a href="#data">The data</a></li>
+    <li><a href="#failures">When it fails</a></li>
+    <li><a href="#code">Where to read the code</a></li>
+    <li><a href="#quiz">Quiz</a></li>
+  </ol>
+</nav>
+
+<section id="map">
+  <h2>The parts</h2>
+  <p>Click a part to see what it does. <span class="skip">FILL or delete: a sentence for a reader who already knows the general idea.</span></p>
+  <!-- Clickable diagram: each [data-node] group needs a <template data-info>
+       with the same id. Keep the ids short (api, queue, worker, db). -->
+  <div class="card" data-explore>
+    <figure class="diagram">
+      <svg viewBox="0 0 560 130" role="img" aria-label="FILL: what the diagram shows">
+        <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g data-node="a"><rect x="10" y="40" width="140" height="50" rx="8"/><text x="80" y="70" text-anchor="middle">FILL: part A</text></g>
+        <path class="flow" d="M150,65 L205,65"/>
+        <g data-node="b"><rect x="210" y="40" width="140" height="50" rx="8"/><text x="280" y="70" text-anchor="middle">FILL: part B</text></g>
+        <path class="arrow" d="M350,65 L405,65"/>
+        <g data-node="c"><rect x="410" y="40" width="140" height="50" rx="8"/><text x="480" y="70" text-anchor="middle">FILL: part C</text></g>
+      </svg>
+    </figure>
+    <div class="panel" aria-live="polite"><span class="hint">Click a part of the diagram.</span></div>
+    <template data-info="a"><strong>FILL: part A</strong><p>FILL: what it does, in two or three sentences. Where it lives: <code>FILL: path/</code>.</p></template>
+    <template data-info="b"><strong>FILL: part B</strong><p>FILL</p></template>
+    <template data-info="c"><strong>FILL: part C</strong><p>FILL</p></template>
+  </div>
+</section>
+
+<section id="flow">
+  <h2>Follow one request</h2>
+  <p>FILL: the invented example from the learning doc (say that it is invented). Click Next, or Play.</p>
+  <!-- Step-through on the same diagram: data-hot names the parts to light
+       up at that step. Show the example data at every step. -->
+  <div class="card" data-stepper>
+    <figure class="diagram">
+      <svg viewBox="0 0 560 130" role="img" aria-label="FILL: the flow">
+        <defs><marker id="arrowhead" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+        <g data-node="a"><rect x="10" y="40" width="140" height="50" rx="8"/><text x="80" y="70" text-anchor="middle">FILL: part A</text></g>
+        <path class="arrow" d="M150,65 L205,65"/>
+        <g data-node="b"><rect x="210" y="40" width="140" height="50" rx="8"/><text x="280" y="70" text-anchor="middle">FILL: part B</text></g>
+        <path class="arrow" d="M350,65 L405,65"/>
+        <g data-node="c"><rect x="410" y="40" width="140" height="50" rx="8"/><text x="480" y="70" text-anchor="middle">FILL: part C</text></g>
+      </svg>
+    </figure>
+    <div class="step" data-title="FILL: step 1" data-hot="a">FILL: what happens, with the data: <code>{"order_id": "ord_123"}</code>. Code: <code>FILL: path/file.ext:42</code></div>
+    <div class="step" data-title="FILL: step 2" data-hot="a b">FILL</div>
+    <div class="step" data-title="FILL: step 3" data-hot="c">FILL</div>
+  </div>
+</section>
+
+<section id="data">
+  <h2>The data</h2>
+  <!-- Database diagram: one [data-node] per table; key columns in class key,
+       other columns in class col; lines between related tables. Each table's
+       template lists its columns, who writes it and who reads it, with code
+       references. Delete the section when the unit keeps no data. -->
+  <p>Click a table to see its columns, and the code that writes and reads it.</p>
+  <div class="card" data-explore>
+    <figure class="diagram">
+      <svg viewBox="0 0 560 170" role="img" aria-label="FILL: the tables and how they relate">
+        <g data-node="t1"><rect x="20" y="20" width="200" height="120" rx="8"/>
+          <text x="120" y="42" text-anchor="middle">FILL: users</text>
+          <text class="key" x="34" y="70">id (PK)</text><text class="col" x="34" y="92">FILL: email</text><text class="col" x="34" y="114">FILL: created_at</text></g>
+        <path class="arrow" d="M220,80 L335,80"/><text class="col" x="278" y="72" text-anchor="middle">1 → many</text>
+        <g data-node="t2"><rect x="340" y="20" width="200" height="120" rx="8"/>
+          <text x="440" y="42" text-anchor="middle">FILL: orders</text>
+          <text class="key" x="354" y="70">id (PK)</text><text class="key" x="354" y="92">user_id (FK)</text><text class="col" x="354" y="114">FILL: status</text></g>
+      </svg>
+    </figure>
+    <div class="panel" aria-live="polite"><span class="hint">Click a table.</span></div>
+    <template data-info="t1"><strong>FILL: users</strong><p>FILL: what one row means. Written by <code>FILL</code>, read by <code>FILL</code>. Schema: <code>FILL: migrations/0001.sql</code>.</p></template>
+    <template data-info="t2"><strong>FILL: orders</strong><p>FILL</p></template>
+  </div>
+</section>
+
+<section id="failures">
+  <h2>When it fails</h2>
+  <!-- Before / after: the normal path and a failure path of the same example
+       (a timeout, a retry, a duplicate). A warn callout for each edge case. -->
+  <div class="card" data-toggle>
+    <div data-state="Normal">FILL: what happens when all goes well</div>
+    <div data-state="FILL: Timeout">FILL: what happens then, and what the user sees</div>
+  </div>
+  <div class="callout warn"><strong>FILL: a likely wrong idea</strong>FILL: what is really true, and why.</div>
+</section>
+
+<section id="code">
+  <h2>Where to read the code</h2>
+  <!-- The steps of the learning doc's "exact path", each with a link to the
+       file from this page's folder (e.g. ../../src/api/routes.py). Escape
+       <, > and & in code. -->
+  <ol>
+    <li><a href="FILL: ../../src/file.ext">FILL: <code>function()</code></a>: FILL: what it checks, changes or sends.</li>
+  </ol>
+</section>
+
+<section id="quiz">
+  <h2>Quiz</h2>
+  <p>Six questions, from easy to hard. Click an answer to see if it is right and why.</p>
+  <div id="quiz-list"></div>
+  <div id="score" aria-live="polite"><span>0 of 0 answered</span></div>
+</section>
+</main>
+
+<!-- FILL: the quiz from the learning doc, as multiple choice. level is easy,
+     medium or hard (in that order). answer is the index of the correct
+     option (0 = A). why explains the answer and why the strongest wrong
+     option is wrong. Write < as \u003c inside strings. -->
+<script type="application/json" id="quiz-data">
+[
+  {"level": "easy", "q": "FILL: question", "options": ["FILL: A", "FILL: B", "FILL: C", "FILL: D"], "answer": 1, "why": "FILL: reason, with the code reference. A is wrong because ..."}
+]
+</script>
+
+<script>
+(function () {
+  // Before / after toggles.
+  document.querySelectorAll("[data-toggle]").forEach(function (box) {
+    var states = Array.prototype.slice.call(box.querySelectorAll(":scope > [data-state]"));
+    if (!states.length) return;
+    var bar = document.createElement("div"); bar.className = "controls";
+    var buttons = states.map(function (state, i) {
+      var b = document.createElement("button"); b.type = "button"; b.textContent = state.getAttribute("data-state");
+      b.addEventListener("click", function () { show(i); }); bar.appendChild(b); return b;
+    });
+    box.insertBefore(bar, box.firstChild);
+    function show(i) {
+      states.forEach(function (s, j) { s.hidden = j !== i; buttons[j].setAttribute("aria-pressed", String(j === i)); });
+    }
+    show(0);
+  });
+
+  // Clickable diagrams: a [data-node] in the SVG shows <template data-info>
+  // with the same id in the card's .panel.
+  document.querySelectorAll("[data-explore]").forEach(function (box) {
+    var panel = box.querySelector(".panel"); if (!panel) return;
+    var nodes = Array.prototype.slice.call(box.querySelectorAll("[data-node]"));
+    function pick(node) {
+      nodes.forEach(function (n) { n.classList.toggle("on", n === node); });
+      var info = box.querySelector('template[data-info="' + node.getAttribute("data-node") + '"]');
+      panel.textContent = "";
+      if (info) panel.appendChild(info.content.cloneNode(true));
+    }
+    nodes.forEach(function (node) {
+      node.setAttribute("tabindex", "0"); node.setAttribute("role", "button");
+      node.addEventListener("click", function () { pick(node); });
+      node.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); pick(node); } });
+    });
+  });
+
+  // Step-through. A step's data-hot lights those [data-node] parts of the
+  // card's diagram. Play walks through the steps by itself.
+  document.querySelectorAll("[data-stepper]").forEach(function (box) {
+    var steps = Array.prototype.slice.call(box.querySelectorAll(":scope > .step"));
+    if (!steps.length) return;
+    var nodes = Array.prototype.slice.call(box.querySelectorAll("[data-node]"));
+    var bar = document.createElement("div"); bar.className = "controls";
+    function button(text) { var b = document.createElement("button"); b.type = "button"; b.textContent = text; bar.appendChild(b); return b; }
+    var prev = button("← Back"), next = button("Next →"), play = button("▶ Play");
+    var label = document.createElement("span"); label.className = "progress"; label.setAttribute("aria-live", "polite");
+    bar.appendChild(label);
+    box.insertBefore(bar, box.firstChild);
+    var at = 0, timer = null;
+    function show() {
+      steps.forEach(function (s, j) { s.classList.toggle("on", j === at); });
+      var hot = " " + (steps[at].getAttribute("data-hot") || "") + " ";
+      nodes.forEach(function (n) { n.classList.toggle("on", hot.indexOf(" " + n.getAttribute("data-node") + " ") >= 0); });
+      prev.disabled = at === 0; next.disabled = at === steps.length - 1;
+      label.textContent = "Step " + (at + 1) + " of " + steps.length + ": " + (steps[at].getAttribute("data-title") || "");
+    }
+    function stop() { if (timer) { clearInterval(timer); timer = null; play.textContent = "▶ Play"; } }
+    prev.addEventListener("click", function () { stop(); if (at > 0) { at--; show(); } });
+    next.addEventListener("click", function () { stop(); if (at < steps.length - 1) { at++; show(); } });
+    play.addEventListener("click", function () {
+      if (timer) { stop(); return; }
+      if (at === steps.length - 1) at = 0;
+      play.textContent = "❚❚ Pause"; show();
+      timer = setInterval(function () { if (at < steps.length - 1) { at++; show(); } else { stop(); } }, 1800);
+    });
+    show();
+  });
+
+  // Quiz.
+  var data = [];
+  try { data = JSON.parse(document.getElementById("quiz-data").textContent); } catch (e) { data = []; }
+  var list = document.getElementById("quiz-list"), score = document.querySelector("#score span");
+  var answered = 0, right = 0, letters = "ABCD";
+  function update() { score.textContent = answered + " of " + data.length + " answered, " + right + " right"; }
+  data.forEach(function (item, n) {
+    var box = document.createElement("div"); box.className = "q";
+    var level = document.createElement("div"); level.className = "level " + item.level;
+    level.textContent = (n + 1) + " · " + item.level;
+    var ask = document.createElement("div"); ask.className = "ask"; ask.textContent = item.q;
+    var why = document.createElement("div"); why.className = "why";
+    box.appendChild(level); box.appendChild(ask);
+    var buttons = item.options.map(function (text, i) {
+      var b = document.createElement("button"); b.type = "button"; b.className = "opt";
+      b.textContent = letters[i] + ". " + text;
+      b.addEventListener("click", function () {
+        if (box.classList.contains("done")) return;
+        box.classList.add("done"); answered++;
+        if (i === item.answer) right++;
+        b.classList.add(i === item.answer ? "right" : "wrong");
+        buttons[item.answer].classList.add("right");
+        why.textContent = (i === item.answer ? "Right. " : "Not quite: the answer is " + letters[item.answer] + ". ") + item.why;
+        update();
+      });
+      box.appendChild(b); return b;
+    });
+    box.appendChild(why); list.appendChild(box);
+  });
+  update();
+})();
+</script>
+</body>
+</html>

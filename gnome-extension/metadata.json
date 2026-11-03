@@ -1,0 +1,7 @@
+{
+  "uuid": "da-workstation@local",
+  "name": "DA Workstation Window Control",
+  "description": "Focus existing app windows for the local DA Workstation launcher.",
+  "shell-version": ["50"],
+  "version": 1
+}

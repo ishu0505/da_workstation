@@ -1,0 +1,12 @@
+#!/bin/sh
+# After a pull or a merge: say in one line when other people's commits
+# changed code since the docs were last checked (the next agent session
+# offers docs-sync), and in a team repo (beside mode) refresh the local
+# files that connect your maps to each agent. Never blocks.
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || exit 0
+[ -f "$ROOT/.agents/kit/wire.sh" ] && sh "$ROOT/.agents/kit/wire.sh" --quiet >/dev/null 2>&1
+if [ -f "$ROOT/.agents/kit/pulled.sh" ]; then
+  line=$(sh "$ROOT/.agents/kit/pulled.sh" status 2>/dev/null | head -1)
+  [ -n "$line" ] && echo "agent-kit: $line Your next agent session offers docs-sync."
+fi
+exit 0

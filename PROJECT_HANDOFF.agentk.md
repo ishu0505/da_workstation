@@ -2,6 +2,7 @@
 
 Planning baseline: October 28, 2026. All dates and daily targets use Asia/Singapore.
 This file records the user's agreed direction and proposed implementation details.
+Schedule update, October 30: the user requests a small Rust focus bar that opens apps and terminals today. See D-006 and section 13.
 Product requirements and dates below are agreed; technical layout and time boxes are proposals to validate during implementation.
 
 ## 1. Read this before agent-kit setup
@@ -37,11 +38,14 @@ Each task has a sidebar tab and conversation. It holds the goal, project folder,
 
 Future vision: tasks from Slack mentions, personal reminders/to-dos, configurable follow-ups, several agent providers at once, routing rules, richer workspace profiles, and broader OS/app automation.
 
+Planning clarification, October 30: the workstation must also help the user manage each coding agent's skills, MCP connections, plugins, and tools. See section 6 for scope and permission alerts. These additions do not change the build dates or the Muse-first boundary.
+
 ## 3. Dates and work boundaries
 
 - Wednesday October 28: planning and this handoff only.
 - Thursday October 29: planning, UX decisions, contracts, acceptance checklist, and manual agent-kit setup if invoked. No coding or experiments.
-- Friday October 30: no implementation scheduled. Optional planning only.
+- Friday October 30: build the first app launcher on the current Fedora machine (D-006). Other implementation dates remain unchanged.
+- October 30 continuation: the user approves existing-window focus next, followed by the summon/tiling/Muse sequence. D-007 records the focus increment.
 - Saturday October 31: implementation day 1.
 - Sunday November 1: implementation day 2; complete the integrated demo and freeze features.
 - Monday November 2: implementation day 3; finish verification, fixes, packaging, and demo material.
@@ -117,6 +121,56 @@ Examples of user intent, not a mandatory command grammar:
 Keep the initial command surface small: focus/select, create task, delegate, stop, and continue. A text entry plus explicit controls is acceptable; a full DSL and frecency engine are later work.
 
 For follow-ups, distinguish what the agent can verify (a run produced an artifact or a command passed) from a human task that needs confirmation. An unanswered reminder is still open. Slack messages are input data, not authority to execute commands or send replies.
+
+### Permission requests and sidebar status
+
+Example: task A needs permission to run a command. Task B continues its own work. Task A shows "Needs permission" in its sidebar tab.
+
+A session is one agent conversation with its running work. Each permission request must belong to one task, session, and run attempt. An approval allows a specific action. A normal chat reply does not count as approval.
+
+The sidebar must show which task needs attention without opening each chat. Show a short reason beside the status. Use text and an icon with each color. Never use color alone.
+
+Proposed colors need contrast checks before implementation:
+
+| Status | Proposed color | Meaning |
+|---|---|---|
+| Running | Blue | The agent continues work. |
+| Needs permission | Amber | The agent waits for approval of a specific action. |
+| Needs input | Amber | The agent needs an answer or another user action. |
+| Failed | Red | The run ended with a failure. |
+| Completed | Green | The run ended. Show verification results separately. |
+| Cancelled or unknown | Gray | The run stopped, or its current state is unverified. |
+
+"Needs permission" and "Needs input" explain the existing NeedsYou task state. A request for permission is not a failed run.
+
+Required permission flow:
+
+1. Receive the permission request from the agent connection.
+2. Link the request to its task, session, and run attempt.
+3. Highlight the matching sidebar tab.
+4. Send one alert for the new request.
+5. Open the matching request when the user selects the alert or tab.
+6. Show the requested action, target, reason, and available approval choices.
+7. Send the user's choice to the matching agent session.
+8. Update the status from the agent's response.
+
+Keep the request visible until the agent resolves it. Show the outcome if the user denies permission. Do not claim that work resumed without evidence.
+
+When several agents run, keep their requests separate. Show how many tasks need attention. A blocked task must not pause unrelated tasks. Never send one task's approval to another task or a newer run.
+
+Before the feature freeze, verify this flow with a real Muse permission request. Verify that the alert opens the correct task. Check approval, denial, and repeated events. Check that repeated events do not create repeated alerts. When concurrent runs ship, also test two pending requests in different tasks. Concurrent execution remains outside the required first-build scope.
+
+### Agent skills, MCP connections, plugins, and tools
+
+A skill gives an agent instructions for a type of work. Model Context Protocol (MCP) connects an agent to tools and data. A plugin adds packaged features or connections. A tool performs an action, such as reading a file or running a command.
+
+The user wants one place to inspect and manage these capabilities for coding agents. Keep each agent's settings separate. Show which capabilities the selected task can use. Show connection errors and permission needs in the task chat.
+
+The first build must show capability limits honestly. It must surface permission requests that the Muse connection supports. Do not promise tool controls that Muse does not expose.
+
+Full capability management follows the required flow. Proposed controls include viewing available capabilities, changing enabled capabilities, and managing connections. Installation, removal, and account connection methods remain open. Verify each agent's supported controls before choosing an implementation. Record which settings apply to a task and which apply to all tasks for that agent.
+
+Keep these controls behind the provider boundary. A provider is the service or agent that executes a task. Preserve each task's provider choice. Support for several agents at once remains a future goal.
 
 ## 7. Architecture and provider compatibility
 
@@ -206,3 +260,128 @@ Resolve these by discussion during planning or evidence during the build. Do not
 - SAM capabilities: https://dev.meta.ai/docs/sam/overview
 
 These pages were consulted October 28. Version-specific integration facts must be checked against installed tools and current official documentation when implementation begins.
+
+## 12. PRD v4.0 vision and coverage, October 30
+
+The user supplied the expanded Master Project Blueprint and PRD v4.0 on October 30.
+This section captures its product intent and proposed design. Sections 3–5 still govern dates, required scope, and acceptance.
+This blueprint clarification alone did not authorize October 30 implementation. The later focus-bar request authorizes the slice in section 13.
+
+### Execution and AI routing
+
+- Combine deterministic window/app commands with autonomous agent tasks. Use deterministic operations when a supported operation can express the request.
+- Keep real native apps on an open tiling canvas. A translucent sidebar, top status strip, and bottom command/chat bar form the proposed hollow frame.
+- Run autonomous work in a separate session, tab, or supported workspace without stealing the user's active pointer or keyboard.
+- Prefer structured browser or accessibility control. Treat screenshot-based targeting as a proposed fallback that needs separate validation.
+- Preserve three routing destinations: local inference, subscription-backed agent sessions, and Muse multimodal/API execution.
+- The supplied blueprint reverses the subscription and Muse tier numbers between sections. Use destination names until the numbering is settled.
+- Proposed local work includes intent classification, message refinement, bounded log summaries, anomaly triage, and context snapshots.
+- Proposed local engines include Ollama, llama.cpp, Candle, and an MLX bridge. Select an engine only after hardware and integration checks.
+- Proposed subscription sessions include Claude, Codex, Gemini, and Muse Code through supported persistent interfaces, potentially pseudo-terminals (PTYs).
+- Keep all model-specific behavior behind the provider boundary. Muse remains the first implemented provider; automatic routing follows later.
+
+### Command and interaction vision
+
+These are proposed product syntax examples, not commands implemented or verified in this repository:
+
+- `use-w slack @alex`: focus and tile Slack, select a supported recipient, and prepare a message.
+- `--improve-local`, `--improve-muse`, and `--improve-gemini`: refine a draft through the chosen destination.
+- `ai-task --muse`: delegate a bounded autonomous workflow with progress, approvals, cancellation, and results in its task chat.
+- `watch-w terminal --muse` or `--watch`: attach monitoring instructions to a supported process or window.
+- `use-w browser yt "rust gpui architecture"`: search through a supported browser driver and present selectable results.
+- `ws switch ai-backend`: restore a saved workspace profile and its context.
+
+Show a draft before sending an AI-refined message. Provide explicit approve, edit, and cancel controls.
+Bind approval to the displayed task, run, and action. A global Enter key must not approve an unrelated pending request.
+The supplied `[E] Edit` and `Ctrl + E` alternatives need one consistent binding.
+Modifier-only summon shortcuts remain proposals; section 5 requires a usable shortcut with an actual key and conflict checks.
+
+### Active Context Sentinel and Process Watcher
+
+Example: a training run fails while the user answers messages in another workspace. The workstation alerts the matching task and preserves the previous context.
+
+- Monitor owned PTY output, error output, process exit events, and supported session events before considering window polling.
+- Use deterministic filters for known errors and completion signals. Bound model summaries and escalate only relevant evidence.
+- Proposed signals include tracebacks, NaN loss, out-of-memory errors, completion, and available progress metrics.
+- Preserve a human context snapshot: goal, project, command/run reference, last meaningful state, recent changes, and next action.
+- Show a context restore card when the user returns to a task or profile.
+- Link each watcher to a task, run, process/session, and workspace. Distinguish completion, failure, interruption, and unverified state.
+- Show source evidence and label model diagnoses as suggestions. Review a proposed fix before applying it to the matching target.
+- Provide a jump to the alerted task/window. Deduplicate alerts and bound stored log tails.
+
+Required Muse task monitoring and context cards remain in scope. Independent arbitrary-process watchers and automatic profile snapshots extend that scope.
+Assess these extensions after the required flow works; do not silently add them to the three-day acceptance gates.
+
+### Visual design and profiles
+
+- Proposed master/stack ratio: 70/30. Profiles save apps, working directories, URLs, layout ratios, and provider defaults.
+- Proposed glass surface: `rgba(9, 9, 11, 0.72)`, with blur where supported and opaque readable text.
+- Proposed colors: primary `#FAFAFA`, ghost text `#71717A`, command flags `#38BDF8`, Muse tasks `#A855F7`.
+- Proposed alert colors: error `#EF4444`, success `#10B981`. Add labels/icons and check contrast on actual backgrounds.
+- Proposed 2px borders: cyan for human focus, purple for agent activity, amber/red for attention. Animation remains optional visual polish.
+- Preserve per-app command history and frecency as future conveniences. Task chats remain the source for task progress, results, approvals, and follow-ups.
+- Proposed keys include Tab/Shift+Tab for selection, Right Arrow/Ctrl+Y for prediction, and Ctrl+Shift+A for alerts.
+- Escape behavior must distinguish dismissing UI, cancelling a draft, and stopping a particular running task.
+
+### Platform, libraries, and storage proposals
+
+The blueprint proposes `WindowManagerBackend`, `UiAutomationBackend`, and `ProcessWatcherBackend` platform contracts.
+These can guide the platform boundary without requiring a separate daemon or additional crates before there is evidence.
+
+| Area | Candidates to verify when that area is implemented |
+|---|---|
+| UI, async, persistence | Rust 2024, GPUI, Tokio bridge, SQLite WAL through rusqlite |
+| Browser and command surface | Chrome DevTools Protocol through chromiumoxide; nucleo matching; winnow parsing |
+| Linux/GNOME | Shell extension, Mutter window APIs, zbus, AT-SPI2, ashpd/PipeWire portals, libei, clipboard integration |
+| macOS | AXUIElement, CGWindowList, objc2 bindings, ScreenCaptureKit, supported input and clipboard interfaces |
+| Local compute | Metal/Accelerate or supported Linux GPU backends; model choice depends on measured latency and memory |
+| Vision | Proposed Muse plus SAM 3.1 integration; verify model availability, outputs, targeting, and input isolation |
+
+Proposed storage includes `workspaces.toml`, command history, a frecency index, an app entity cache, and watcher/context records.
+These augment the task/run/message/event model in section 6. A single watcher/history table cannot replace persistent conversations and separate run attempts.
+Resolve native platform data directories before adopting the blueprint's Linux-style `~/.config/ai-workstation/` and `~/.local/share/ai-workstation/state.db` paths.
+Store secret references and redacted results. Do not follow the blueprint's suggestion to log retrieved credentials or API keys into workspace history.
+
+### Verification gates and roadmap relationship
+
+The v4 milestones describe the full product: hollow frame/DSL, platform tiling, profiles/history, routing, then deep drivers/agents/watchers.
+Use sections 4 and 8 for the November 2 delivery sequence. Prove native tiling and real Muse execution before expanding the command surface.
+
+Treat sub-millisecond control, sub-150ms rewrites, zero latency, zero total cost, and universal background input as unverified claims.
+Measure local dispatch, end-to-end action completion, inference latency, resource use, and billed usage separately.
+Local execution can avoid cloud API charges; do not equate subscription access or local hardware use with unlimited free execution.
+Model names, SAM output semantics, platform support, and permissions have not been verified for this v4 proposal.
+Record evidence before locking those technical choices. Preserve the wider vision without presenting every candidate as a build commitment.
+
+## 13. First implementation slice, October 30
+
+The user asks to start today with a Rust focus bar that opens apps and terminals.
+Build a small native GPUI launcher on the current Fedora GNOME Wayland machine.
+Discover installed desktop apps, filter by name or metadata, select with keys, and send a launch request through the desktop integration.
+Ghostty is installed; searching for terminal should include it. Show empty results and launch errors clearly.
+
+This slice establishes the Rust build, native UI, text input, keyboard selection, and a platform launch boundary.
+It does not prove existing-window focus, global summon, reserved screen edges, tiling, task persistence, or Muse integration.
+Keep those as subsequent phases. The final demo platform remains open; a Fedora launcher does not verify macOS support.
+Finish November 2 and submit November 3 only after explicit authorization, as before.
+
+## 14. Existing-window focus continuation, October 30
+
+The user accepts the next step: focus an existing app window, or launch the app when none exists.
+The current increment uses a small GNOME 50 Shell extension behind `src/windows.rs`.
+GNOME denies ordinary callers access to its built-in window-list and focus methods on this machine.
+The extension exposes app focus and app window count/focus state through the local desktop session bus.
+It does not expose arbitrary script execution. App launch stays in the Rust desktop boundary.
+
+Enter and result clicks request focus first. A confirmed absence of windows permits a launch request.
+An unavailable extension produces an error; Ctrl+Enter provides an explicit launch request.
+An isolated GNOME test proves launch, existing-window focus, and repeated activation without duplicate windows.
+The initial desktop session could not discover the installed extension. On October 30 continuation, enabling succeeds and GNOME reports it active.
+The Rust focus command succeeds for Ghostty, with one focused window in subsequent state checks.
+The user confirms search typing, selection, and Enter focus Ghostty through the bar without opening another window.
+See `gnome-extension/README.agentk.md` and `experiments/gnome-focus/REPORT.agentk.md` for setup and evidence.
+
+The user confirms Linux Ctrl+Alt+Space summons and reopens the bar.
+The next tiling increment adds Ctrl+T/Ctrl+R through the GNOME adapter. Isolated two-window placement and restoration pass; desktop and three-window acceptance remain pending.
+Real Muse execution remains a subsequent increment.
+The November 2 completion date, November 3 submission authorization, and open final demo platform remain unchanged.

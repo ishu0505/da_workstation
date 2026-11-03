@@ -5,6 +5,7 @@
 # Usage: .agents/kit/check.sh [--quiet] [--ci] [--run-commands]
 #                             [--staged | --since <ref> | --changed <path>...]
 #        .agents/kit/check.sh --anchors <map>...
+#        .agents/kit/check.sh --links [<map>...]   (no map: every map)
 #
 #   no scope        every problem fails (by hand, and CI on a push)
 #   --staged        pre-commit: only problems this commit causes fail; maps
@@ -15,6 +16,7 @@
 #   --run-commands  also run the ## Run and ## Check blocks of the maps in
 #                   RUN_COMMANDS_MAPS
 #   --anchors       print map, line and path for every path the maps name
+#   --links         print map, line, from and to for every Hidden links row
 #
 # Reads .agents/agent-kit.conf. Prints each failure with its fix and exits 1
 # when anything fails. Needs only sh, git, grep, awk and sed, so it works in a
@@ -25,6 +27,7 @@ QUIET=0
 CI=0
 RUN_COMMANDS=0
 ANCHORS=0
+LINKS=0
 SCOPE=""
 SINCE=""
 while [ $# -gt 0 ]; do
@@ -36,11 +39,13 @@ while [ $# -gt 0 ]; do
     --since) SCOPE=since; SINCE=${2:-}; shift ;;
     --changed) SCOPE=changed; shift; break ;;
     --anchors) ANCHORS=1; shift; break ;;
+    --links) LINKS=1; shift; break ;;
     *) echo "agent-kit: unknown option $1 (see the usage at the top of check.sh)"; exit 2 ;;
   esac
   shift
 done
 
+KIT_LIB="$(cd "$(dirname "$0")" && pwd)/lib.sh"  # before cd: $0 may be relative
 ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
   echo "agent-kit: not inside a git repository"; exit 1; }
 cd "$ROOT" || exit 1
@@ -70,7 +75,7 @@ LEARNING_DIR="learning_docs"
 SKIP_DIRS="node_modules .venv venv vendor target build dist out bin obj"
 CONF=".agents/agent-kit.conf"
 if [ -f "$CONF" ]; then
-  . "./$CONF"
+  . "$KIT_LIB" && load_conf "$CONF"
 else
   echo "FAIL $CONF is missing"
   echo "     fix: run agent_dev_kit/install.sh on this repo"
@@ -149,7 +154,11 @@ rel() {  # rel <folder> <path>: the path from the repo root
 }
 exists() {  # exists <folder> <path or glob>
   case "$2" in
-    *[*?[]*) set -- "$1"/$2; [ -e "$1" ] ;;  # a glob (src/*View.svelte); unquoted on purpose
+    *[*?[]*)  # a glob (src/*View.svelte, **/__snapshots__)
+      _glob=$(rel "$1" "${2%/}")
+      set -- "$1"/$2; [ -e "$1" ] && return 0  # unquoted on purpose
+      # The shell's * stops at a slash, so ** needs git's own glob matching.
+      [ -n "$(git ls-files -co --exclude-standard -- ":(glob)$_glob" ":(glob)$_glob/**" 2>/dev/null | head -1)" ] ;;
     *) [ -e "$1/$2" ] ;;
   esac
 }
@@ -174,9 +183,11 @@ unit_folders() {  # every unit: listed in UNITS, or a child of a UNIT_PARENTS fo
 
 map_tokens() {  # map_tokens <map>: kind, line and text of every `word` in backticks
   # Kind S: a mapped path (table "Path" and "Read first" columns, the
-  # "Further reading" list); it must exist. Kind P: any other word; it is
-  # checked only when it looks like a path. Code blocks and lines ending in
-  # <!-- agent-kit: skip --> are left out.
+  # "Further reading" list); it must exist. Kind W: a path in a warning row
+  # ("Do not read", "Lookalikes", "Hidden links": every path before the
+  # " — "); it must exist, from the map's folder or from the root. Kind P:
+  # any other word; it is checked only when it looks like a path.
+  # Code blocks and lines ending in <!-- agent-kit: skip --> are left out.
   awk '
     { sub(/\r$/, "") }
     function trim(s) { gsub(/^[ \t]+|[ \t]+$/, "", s); return s }
@@ -197,6 +208,11 @@ map_tokens() {  # map_tokens <map>: kind, line and text of every `word` in backt
     /^#/ { section = $0; header = 0; emit("P", $0); next }
     !/^\|/ { header = 0 }
     /^- `/ && section ~ /Further reading/ { first($0); next }
+    /^- `/ && section ~ /^## (Do not read|Lookalikes|Hidden links)/ {
+      cut = index($0, " — ")  # the paths, then the reason in prose
+      if (cut) { emit("W", substr($0, 1, cut)); emit("P", substr($0, cut)) } else emit("W", $0)
+      next
+    }
     /^\|/ {
       if ($0 ~ /^[|: -]+$/) next
       n = split($0, cells, "|")
@@ -212,6 +228,7 @@ map_tokens() {  # map_tokens <map>: kind, line and text of every `word` in backt
 }
 
 looks_like_path() {  # looks_like_path <folder> <word>: a prose word worth checking
+  case "$2" in "${DOC_SUFFIX:-.agentk.md}"|.agentk.md) return 1 ;; esac  # the kit's name ending, not a file
   [ -n "$LEARNING_DIR" ] && case "$2" in "$LEARNING_DIR"|"$LEARNING_DIR"/*) return 1 ;; esac  # often local only
   case "$2" in
     *" "*|*://*|*"<"*|*">"*|*'$'*|*"{"*|*"}"*|*"@"*|*"="*|*"("*|*")"*|*"'"*|*'"'*|*","*|*";"*|-*|*\\*) return 1 ;;
@@ -236,10 +253,36 @@ if [ "$ANCHORS" = 1 ]; then
     map_tokens "$map" | while IFS="$TAB" read -r kind line word; do
       path=${word%/}
       [ -n "$path" ] || continue
+      [ "$kind" = W ] && continue  # a warning row: editing the path leaves the row true
       [ "$kind" = S ] || looks_like_path "$folder" "$word" || continue
       for target in "$(rel "$folder" "$path")" "$path"; do
         if exists . "$target"; then printf '%s\t%s\t%s\n' "$map" "$line" "$target"; break; fi
       done
+    done
+  done
+  exit 0
+fi
+
+root_path() {  # root_path <folder> <path>: the path from the root, as the map means it
+  _root=$(rel "$1" "${2%/}")
+  exists . "$_root" || { exists . "${2%/}" && _root=${2%/}; }
+  printf '%s' "$_root"
+}
+if [ "$LINKS" = 1 ]; then  # Hidden links rows: map, line, from, to (paths from the root)
+  { if [ $# -gt 0 ]; then printf '%s\n' "$@"; else find_maps; fi; } | while IFS= read -r map; do
+    [ -f "$map" ] || continue
+    folder=$(dirname "$map")
+    awk '
+      { sub(/\r$/, "") }
+      /^[ \t]*(```|~~~)/ { fence = !fence; next }
+      fence { next }
+      /^#/ { links = ($0 ~ /^## Hidden links/); next }
+      links && /^- `/ {
+        n = 0; text = $0
+        while (n < 2 && match(text, /`[^`]+`/)) { word[++n] = substr(text, RSTART + 1, RLENGTH - 2); text = substr(text, RSTART + RLENGTH) }
+        if (n == 2) print NR "\t" word[1] "\t" word[2]
+      }' "$map" | while IFS="$TAB" read -r line from to; do
+      printf '%s\t%s\t%s\t%s\n' "$map" "$line" "$(root_path "$folder" "$from")" "$(root_path "$folder" "$to")"
     done
   done
   exit 0
@@ -259,14 +302,21 @@ check_map() {  # check_map <map> <max lines>
     [ -n "$path" ] || continue
     if [ "$kind" = S ]; then
       exists "$folder" "$path" && continue
+    elif [ "$kind" = W ]; then
+      { exists "$folder" "$path" || exists . "$path"; } && continue
     else
       looks_like_path "$folder" "$word" || continue
       { exists "$folder" "$path" || exists . "$path" || anywhere "$path"; } && continue
     fi
     target=$(rel "$folder" "$path")
     caused=$own; was_removed "$target" && caused=yes
-    report "$caused" "$map names a missing path: $path (line $line)" \
-      "fix the path or remove it; to keep a word that is not a path, end the line with <!-- agent-kit: skip -->"
+    if [ "$kind" = W ]; then
+      report "$caused" "$map has a warning row for a missing path: $path (line $line)" \
+        "the row is stale: remove it, or fix the path if the folder moved"
+    else
+      report "$caused" "$map names a missing path: $path (line $line)" \
+        "fix the path or remove it; to keep a word that is not a path, end the line with <!-- agent-kit: skip -->"
+    fi
   done < "$TMP_TOKENS"
   if [ "$CHECK_ENV" = yes ]; then
     awk -F "$TAB" '$3 ~ /^[A-Z][A-Z0-9]*_[A-Z0-9_]+$/ { print $2 "\t" $3 }' "$TMP_TOKENS" | LC_ALL=C sort -u -k2,2 > "$TMP_ENV"
@@ -476,7 +526,7 @@ check_share_mode() {  # files reach the remote only when SHARE allows it
     return
   fi
   if [ "$SHARE" = agent ] || [ "$SHARE" = all ]; then
-    untracked=$(git ls-files --others --exclude-standard -- .agents .claude .codex .githooks | tr '\n' ' ')
+    untracked=$(git ls-files --others --exclude-standard -- .agents .claude .codex .githooks ':(exclude).agents/work' | tr '\n' ' ')
     [ -z "$untracked" ] || fail "agent files are not in git, so a fresh clone lacks them: $untracked" \
       "git add them (put personal files in .gitignore or your global git ignore)"
   else
@@ -545,6 +595,15 @@ check_learning_docs() {
     "run: git rm -r --cached $LEARNING_DIR (they stay local)"
   git check-ignore -q "$LEARNING_DIR/probe.md" || fail "$LEARNING_DIR/ is not git-ignored" \
     "run: sh <agent_dev_kit>/install.sh  (it writes the ignore rule for SHARE=$SHARE)"
+}
+
+check_task_files() {  # task files (.agents/work/) are personal notes: never in git
+  tracked=$(git ls-files -- .agents/work | head -3 | tr '\n' ' ')
+  [ -z "$tracked" ] || fail "task files are personal notes, but git tracks or stages: $tracked" \
+    "run: git rm -r --cached -q -- .agents/work (the files stay on disk)"
+  [ -d .agents/work ] || return 0
+  git check-ignore -q .agents/work/probe.agentk.md || fail ".agents/work/ (task files) is not git-ignored, so a task file can be committed by mistake" \
+    "run once: sh <agent_dev_kit>/install.sh  (it writes the rule to .git/info/exclude)"
 }
 
 check_ledger() {  # every folder beside the ledger has a row with an outcome
@@ -699,6 +758,7 @@ check_share_mode
 check_git_setup
 check_portability
 check_learning_docs
+check_task_files
 check_ledger
 check_decisions
 check_fixed_names

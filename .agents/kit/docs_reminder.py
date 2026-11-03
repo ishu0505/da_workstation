@@ -16,7 +16,18 @@ shell edits, subagents and every agent are covered, and:
    `.git/agent-kit/stale-learning` for the wrap-up skill; never blocks for it;
 5. with MAPS="beside" (a team repo): refreshes the local wiring when a map
    changed (`.agents/kit/wire.sh`), and asks once when the turn edited one
-   of the team's own agent files (AGENTS.md, CLAUDE.md, GEMINI.md).
+   of the team's own agent files (AGENTS.md, CLAUDE.md, GEMINI.md);
+6. names the other side of a map's "Hidden links" row once per session when
+   the turn changed its first path (and not the second);
+7. asks once per session to update the active task file of this branch
+   (`.agents/work/`) when the turn changed code and the session has not
+   touched that file.
+
+`--repo <path>` names the repo instead of the event's cwd. In a multi-repo
+workspace, `ws-hook.sh` runs it with `--workspace <root> --repos <dir>...`:
+the steps above for each repo with the kit, one merged message, and a
+reminder when a provider file named in LINKS (.agent-workspace/workspace.conf)
+changed, so the repo that uses it is checked too.
 
 `stop_hook_active` is set on the follow-up stop, so it never loops. Any
 error lets the stop through. Installed by agent_dev_kit; do not edit here.
@@ -44,6 +55,14 @@ TEAM_FILE = (
     "{map_file} instead, unless the user asked you to edit the team's file. If they did, say so in one line."
 )
 TEAM_NAMES = ("AGENTS.md", "CLAUDE.md", "GEMINI.md")
+HIDDEN_LINKS = (
+    "Hidden links: this turn changed files that other code depends on in a way search does not show:\n"
+    "{items}\nCheck that each named file still matches, in this task. If it does, say so in one line."
+)
+TASK_FILE = (
+    "Task file: `{path}` is the active task on this branch, and this session has not updated it. "
+    "Update its Found, Decisions, Done and Next now, so a fresh session can continue from it."
+)
 REMINDER = (
     "Docs step: this turn changed code that the docs describe:\n{items}\n"
     "Update the map or {unit_doc} named above in the same change (never a Markdown file the "
@@ -60,8 +79,12 @@ def git(repo: Path, *args: str) -> str:
 
 def read_config(repo: Path) -> dict[str, str]:
     """KEY="value" lines of .agents/agent-kit.conf."""
+    return read_config_file(repo / ".agents" / "agent-kit.conf")
+
+
+def read_config_file(path: Path) -> dict[str, str]:
+    """KEY="value" lines of a kit config file."""
     config = {}
-    path = repo / ".agents" / "agent-kit.conf"
     for line in path.read_text().splitlines() if path.exists() else []:
         match = re.match(r'^([A-Z_]+)="?([^"]*)"?\s*$', line.strip())
         if match:
@@ -245,6 +268,60 @@ def docs_items(repo: Path, config: dict[str, str], changes: dict[str, str], remi
         [f"- and {len(items) - 5} more"] if len(items) > 5 else [])
 
 
+def hidden_link_items(repo: Path, changes: dict[str, str], reminded: set[str]) -> list[str]:
+    """Rows of a map's "Hidden links" section whose first path changed this turn."""
+    try:
+        out = subprocess.run(["sh", ".agents/kit/check.sh", "--links"], cwd=repo,
+                             capture_output=True, text=True, timeout=30).stdout
+    except (OSError, subprocess.TimeoutExpired):
+        return []
+
+    def matches(path: str, pattern: str) -> bool:
+        pattern = pattern.rstrip("/")
+        return path == pattern or fnmatch.fnmatch(path, pattern) or path.startswith(pattern + "/")
+
+    items = []
+    for line in out.splitlines():
+        parts = line.split("\t")
+        if len(parts) != 4:
+            continue
+        map_path, number, source, target = parts
+        key = f"link:{source}>{target}"
+        if key in reminded or any(matches(path, target) for path in changes):
+            continue  # reminded already, or the turn changed the other side too
+        hits = sorted(path for path in changes if matches(path, source))
+        if hits:
+            reminded.add(key)
+            items.append(f"- `{hits[0]}` changed, and `{target}` depends on it "
+                         f"({map_path} line {number}): check that it still matches.")
+    return items
+
+
+def task_item(repo: Path, config: dict[str, str], changes: dict[str, str], reminded: set[str],
+              start: float) -> str:
+    """The active task file of this branch, when code changed and the session has not touched it."""
+    if not any(not path.endswith(".md") and not skipped(path, config) for path in changes):
+        return ""
+    work = repo / ".agents" / "work"
+    if not work.is_dir():
+        return ""
+    branch = git(repo, "symbolic-ref", "--short", "-q", "HEAD").strip()
+    for task in sorted(work.glob("*" + (config.get("DOC_SUFFIX") or ".md"))):
+        head = task.read_text(errors="replace").replace("\r\n", "\n")
+        status = re.search(r"^Status:[ \t]*(\S+)", head, re.M)
+        task_branch = re.search(r"^Branch:[ \t]*(.+?)[ \t]*$", head, re.M)
+        if not status or status.group(1) != "active":
+            continue
+        if branch and task_branch and task_branch.group(1) != branch:
+            continue
+        key = f"task:{task.name}"
+        if key in reminded or task.stat().st_mtime >= start:
+            continue
+        reminded.add(key)
+        return TASK_FILE.format(path=task.relative_to(repo).as_posix())
+    return ""
+
+
 def front_paths(doc: Path) -> list[str]:
     text = doc.read_text(errors="replace")
     match = re.match(r"---\n(.*?)\n---", text.replace("\r\n", "\n"), re.S)
@@ -274,39 +351,48 @@ def repo_root(cwd: str) -> Path:
     return Path(found or cwd).resolve()
 
 
-def main(argv: list[str]) -> None:
-    raw = sys.stdin.read()
-    event = json.loads(raw) if raw.strip() else {}
-    repo = repo_root(event.get("cwd") or ".")
-    if not (repo / ".agents" / "kit" / "check.sh").exists():
-        return
-    common = git(repo, "rev-parse", "--git-common-dir").strip()
-    state_dir = (repo / common / "agent-kit" / "state").resolve()
+def session_name(event: dict) -> str:
+    return re.sub(r"[^A-Za-z0-9_-]", "_", str(event.get("session_id") or "default"))[:80]
+
+
+def fresh_state_dir(state_dir: Path) -> Path:
     state_dir.mkdir(parents=True, exist_ok=True)
     for old in state_dir.glob("*.json"):  # sessions older than a week
         if old.stat().st_mtime < time.time() - 7 * 86400:
             old.unlink()
-    session = re.sub(r"[^A-Za-z0-9_-]", "_", str(event.get("session_id") or "default"))[:80]
-    state_file = state_dir / f"{session}.json"
+    return state_dir
+
+
+def run_repo(repo: Path, event: dict, baseline: bool) -> tuple[str, dict[str, str]]:
+    """The docs step for one repo with the kit: the reason to block (empty: let
+    the stop through), and the files this turn changed there."""
+    common = git(repo, "rev-parse", "--git-common-dir").strip()
+    state_dir = fresh_state_dir((repo / common / "agent-kit" / "state").resolve())
+    state_file = state_dir / f"{session_name(event)}.json"
     now = snapshot(repo)
-    if "--baseline" in argv:
-        state_file.write_text(json.dumps({"snapshot": now, "reminded": []}))
-        return
-    if event.get("stop_hook_active"):
-        return
+
+    def save(reminded: list[str] | set[str]) -> None:
+        state_file.write_text(json.dumps({"snapshot": now, "reminded": sorted(reminded), "start": start}))
+
+    if baseline:
+        start = time.time()
+        save([])
+        return "", {}
     state = json.loads(state_file.read_text()) if state_file.exists() else None
+    start = (state or {}).get("start") or time.time()
     if state is None:
         if not turn_used_change_tools(event.get("transcript_path")):
-            state_file.write_text(json.dumps({"snapshot": now, "reminded": []}))
-            return
+            save([])
+            return "", {}
         state = {"snapshot": {"head": now["head"], "files": {}}, "reminded": []}
     changes = changes_since(repo, state["snapshot"], now)
     reminded = set(state.get("reminded", []))
     if not changes:
-        return
+        return "", {}
     config = read_config(repo)
     beside = config.get("MAPS") == "beside"
-    if beside and any(posixpath.basename(path) in TEAM_NAMES + (map_file(config),) for path in changes):
+    wired = beside or (repo / "AGENTS.override.md").exists()  # a workspace wires own-mode repos too
+    if wired and any(posixpath.basename(path) in TEAM_NAMES + (map_file(config),) for path in changes):
         try:  # a map changed: refresh the local files that connect it to each agent
             subprocess.run(["sh", ".agents/kit/wire.sh", "--quiet"], cwd=repo,
                            capture_output=True, timeout=60)
@@ -314,8 +400,7 @@ def main(argv: list[str]) -> None:
             pass
     failures = failing_checks(repo, sorted(changes))
     if failures:  # keep the old snapshot, so the next turn checks these files again
-        print(json.dumps({"decision": "block", "reason": CHECKS_FAILING.format(failures=failures)}))
-        return
+        return CHECKS_FAILING.format(failures=failures), changes
     mark_stale_learning(repo, config, changes, state_dir)
     if beside:
         team = sorted(path for path in changes if posixpath.basename(path) in TEAM_NAMES
@@ -323,15 +408,103 @@ def main(argv: list[str]) -> None:
                       and git(repo, "ls-files", "--", path).strip())
         if team:
             reminded.update(f"team:{path}" for path in team)
-            state_file.write_text(json.dumps({"snapshot": now, "reminded": sorted(reminded)}))
-            print(json.dumps({"decision": "block", "reason": TEAM_FILE.format(
-                files=", ".join(f"`{path}`" for path in team), map_file=map_file(config))}))
-            return
+            save(reminded)
+            return TEAM_FILE.format(files=", ".join(f"`{path}`" for path in team),
+                                    map_file=map_file(config)), changes
     items = docs_items(repo, config, changes, reminded)
-    state_file.write_text(json.dumps({"snapshot": now, "reminded": sorted(reminded)}))
+    links = hidden_link_items(repo, changes, reminded)
+    task = task_item(repo, config, changes, reminded, start)
+    save(reminded)
+    reasons = []
     if items:
-        print(json.dumps({"decision": "block", "reason": REMINDER.format(
-            items="\n".join(items), unit_doc=unit_doc(config))}))
+        reasons.append(REMINDER.format(items="\n".join(items), unit_doc=unit_doc(config)))
+    if links:
+        reasons.append(HIDDEN_LINKS.format(items="\n".join(links)))
+    if task:
+        reasons.append(task)
+    return "\n\n".join(reasons), changes
+
+
+def plain_changes(repo: Path, state_dir: Path, event: dict, baseline: bool) -> dict[str, str]:
+    """Files changed this turn in a repo without the kit. The state stays in the
+    workspace, so nothing is written inside that repo."""
+    key = re.sub(r"[^A-Za-z0-9_-]", "_", repo.name)
+    state_file = fresh_state_dir(state_dir) / f"{session_name(event)}-{key}.json"
+    now = snapshot(repo)
+    before = json.loads(state_file.read_text())["snapshot"] if state_file.exists() and not baseline else None
+    state_file.write_text(json.dumps({"snapshot": now}))
+    return changes_since(repo, before, now) if before else {}
+
+
+def link_items(links: str, changed: dict[str, dict[str, str]], reminded: set[str]) -> list[str]:
+    """LINKS entries "repo:path>repo:path" whose provider side changed this turn."""
+    items = []
+    for link in links.split():
+        source, _, target = link.partition(">")
+        repo, _, pattern = source.partition(":")
+        if not target or repo not in changed or link in reminded:
+            continue
+        pattern = pattern.rstrip("/")
+        hits = sorted(path for path in changed[repo]
+                      if fnmatch.fnmatch(path, pattern) or path.startswith(pattern + "/"))
+        if hits:
+            reminded.add(link)
+            items.append(f"- `{repo}/{hits[0]}` changed, and `{target.replace(':', '/', 1)}` uses it: "
+                         "check that it still matches, in the same task.")
+    return items
+
+
+def run_workspace(root: Path, repos: list[str], event: dict, baseline: bool) -> str:
+    """Every repo of a workspace: one merged reason, plus the LINKS between repos."""
+    config = read_config_file(root / ".agent-workspace" / "workspace.conf")
+    links = config.get("LINKS", "")
+    state_dir = root / ".agent-workspace" / "state"
+    reasons, changed = [], {}
+    for name in repos:
+        repo = (root / name).resolve()
+        try:
+            reason, changes = run_repo(repo, event, baseline)
+        except Exception:  # noqa: BLE001 - one broken repo must not hide the others
+            continue
+        changed[name] = changes
+        if reason:
+            reasons.append(f"[{name}] {reason}")
+    providers = {link.partition(":")[0] for link in links.split()} - set(repos)
+    for name in sorted(providers):  # link providers without the kit: changes only
+        if (root / name / ".git").exists():
+            changed[name] = plain_changes((root / name).resolve(), state_dir, event, baseline)
+    if baseline:
+        return ""
+    link_state = fresh_state_dir(state_dir) / f"{session_name(event)}-links.json"
+    reminded = set(json.loads(link_state.read_text())) if link_state.exists() else set()
+    items = link_items(links, changed, reminded)
+    link_state.write_text(json.dumps(sorted(reminded)))
+    if items:
+        reasons.append("Contracts between repos (LINKS in .agent-workspace/workspace.conf):\n" + "\n".join(items))
+    return "\n\n".join(reasons)
+
+
+def option(argv: list[str], name: str) -> str | None:
+    return argv[argv.index(name) + 1] if name in argv and argv.index(name) + 1 < len(argv) else None
+
+
+def main(argv: list[str]) -> None:
+    raw = sys.stdin.read()
+    event = json.loads(raw) if raw.strip() else {}
+    baseline = "--baseline" in argv
+    if event.get("stop_hook_active") and not baseline:
+        return
+    workspace = option(argv, "--workspace")
+    if workspace:  # a multi-repo workspace: --workspace <root> --repos <dir>...
+        repos = argv[argv.index("--repos") + 1:] if "--repos" in argv else []
+        reason = run_workspace(Path(workspace).resolve(), repos, event, baseline)
+    else:
+        repo = Path(option(argv, "--repo") or repo_root(event.get("cwd") or ".")).resolve()
+        if not (repo / ".agents" / "kit" / "check.sh").exists():
+            return
+        reason = run_repo(repo, event, baseline)[0]
+    if reason:
+        print(json.dumps({"decision": "block", "reason": reason}))
 
 
 if __name__ == "__main__":
